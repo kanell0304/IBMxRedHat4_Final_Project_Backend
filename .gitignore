@@ -24,3 +24,10 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+
+__pycache__/
+*.pyc
+app/__pycache__/
+app/database/__pycache__/
+app/database/models/__pycache__/
+app/core/__pycache__/
