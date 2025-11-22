@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Integer, func
 from app.database.database import Base
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -12,7 +12,7 @@ class Interview(Base):
     category_id: Mapped[int] = mapped_column(ForeignKey("job_categories.job_category_id"), nullable=False)
     total_duration: Mapped[Optional[int]] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
-    status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     answers: Mapped[List["InterviewAnswer"]] = relationship("InterviewAnswer", cascade="all, delete-orphan")
     results: Mapped[List["InterviewResult"]] = relationship("InterviewResult", cascade="all, delete-orphan")
 
