@@ -1,41 +1,32 @@
-# backend/app/core/settings.py
 from __future__ import annotations
-
 from pathlib import Path
 from datetime import timedelta
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
-# 프로젝트 루트 기준으로 .env 탐색 (루트 .env → backend/.env 순서로 로드)
-BASE_DIR = Path(__file__).resolve().parents[3]  # .../online_voting-survey_platform_pj
+BASE_DIR = Path(__file__).resolve().parents[3]
 ENV_FILES = [BASE_DIR / ".env", BASE_DIR / "backend" / ".env"]
 
-
 class Settings(BaseSettings):
-    # ===== DB =====
     db_user: str = Field(..., alias="DB_USER")
     db_password: str = Field(..., alias="DB_PASSWORD")
     db_host: str = Field("localhost", alias="DB_HOST")
     db_port: str = Field("3306", alias="DB_PORT")
     db_name: str = Field(..., alias="DB_NAME")
 
-    # ===== JWT / TOKEN =====
     secret_key: str = Field(..., alias="SECRET_KEY")
     jwt_algo: str = Field("HS256", alias="JWT_ALGORITHM")
     access_token_expire_sec: int = Field(900, alias="ACCESS_TOKEN_EXPIRE")
     refresh_token_expire_sec: int = Field(604800, alias="REFRESH_TOKEN_EXPIRE")
 
-    # pydantic-settings v2 구성: 여러 .env 파일을 순서대로 로드
     model_config = SettingsConfigDict(
         env_file=[str(p) for p in ENV_FILES],
         env_file_encoding="utf-8",
-        extra="allow",              # 정의되지 않은 키 허용
-        populate_by_name=True,      # alias/필드명 매핑 허용
+        extra="allow",
+        populate_by_name=True,
         case_sensitive=True,
     )
 
-    # ===== 파생 속성 =====
     @property
     def tmp_db(self) -> str:
         return f"{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
@@ -59,5 +50,4 @@ class Settings(BaseSettings):
         return timedelta(seconds=self.refresh_token_expire_sec)
 
 
-# 전역 인스턴스
 settings = Settings()
