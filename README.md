@@ -1,1 +1,15 @@
 backend 폴더 바로 아래에 .env 만들기
+DB_USER, DB_PASSWORD, DB_NAME 부분을 자신의 환경에 맞게 설정하기
+
+#DB 설정
+DB_USER=root
+DB_PASSWORD=1234
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=final_project_db
+
+#JWT 설정
+SECRET_KEY=secretkeyfast
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE=6000
+REFRESH_TOKEN_EXPIRE=604800
