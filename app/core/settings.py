@@ -4,7 +4,7 @@ from datetime import timedelta
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BASE_DIR = Path(__file__).resolve().parents[3]
+BASE_DIR = Path(__file__).resolve().parents[2]
 ENV_FILES = BASE_DIR / ".env"
 
 class Settings(BaseSettings):
