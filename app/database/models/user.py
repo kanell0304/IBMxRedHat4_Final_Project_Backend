@@ -1,8 +1,8 @@
-from ..base import Base
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Integer, String, DateTime, ForeignKey, Index, func
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from app.database import Base
+from typing import Optional
 from datetime import datetime
-from sqlalchemy import String, func, DateTime, Integer, ForeignKey
-from typing import Optional, List
 
 class User(Base):
     __tablename__="users"
@@ -18,5 +18,10 @@ class User(Base):
     refresh_token:Mapped[Optional[str]] = mapped_column(String(300), nullable=True) # 리프레쉬 토큰 정보
 
     #1:M관계
-    presentations: Mapped[List["Presentation"]] = relationship("Presentation", back_populates="user", cascade="all, delete-orphan")
+    # presentations: Mapped[List["Presentation"]] = relationship("Presentation", back_populates="user", cascade="all, delete-orphan")
+    communications: Mapped[list["Communication"]] = relationship("Communication", back_populates="user", cascade="all, delete-orphan")
     profile_image: Mapped[Optional["Image"]] = relationship("Image", foreign_keys=[profile_image_id])
+
+    __table_args__ = (
+    Index('idx_email', 'email'),  # 로그인 시 이메일로 사용자 조회
+    )

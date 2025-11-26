@@ -1,34 +1,109 @@
-from sqlalchemy import DateTime, ForeignKey, String, Integer, func
-from app.database.database import Base
+from sqlalchemy import Integer, String, Float, DateTime, Text, ForeignKey, Enum, JSON, LargeBinary, Index, UniqueConstraint, func
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from app.database import Base
+import enum
+from typing import Optional
 from datetime import datetime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import Optional, List
+
+
+class CommunicationStatus(str, enum.Enum):
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    STOPPED = "stopped"
+    FAILED = "failed"
+
+
+class STTType(str, enum.Enum):
+    CHIRP = "chirp"
+    LONG = "long"
 
 
 class Communication(Base):
     __tablename__ = "communication"
-    c_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    c_title: Mapped[str] = mapped_column(String(100), nullable=False)
-    c_description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
-    status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
+    c_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False)
+    status: Mapped[CommunicationStatus] = mapped_column(Enum(CommunicationStatus), nullable=False, default=CommunicationStatus.IN_PROGRESS)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    
+    user: Mapped["User"] = relationship("User", back_populates="communications")
+    voice_files: Mapped[list["CVoiceFile"]] = relationship("CVoiceFile", back_populates="communication", cascade="all, delete-orphan")
+    stt_results: Mapped[list["CSTTResult"]] = relationship("CSTTResult", back_populates="communication", cascade="all, delete-orphan")
+    bert_result: Mapped[Optional["CBERTResult"]] = relationship("CBERTResult", back_populates="communication", uselist=False, cascade="all, delete-orphan")
+    result: Mapped[Optional["CResult"]] = relationship("CResult", back_populates="communication", uselist=False, cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_user_id', 'user_id'),  # 특정 사용자의 모든 대화 조회 시 사용
+        Index('idx_created_at', 'created_at'),  # 대화목록 최신순 정렬 시 사용
+    )
 
-    results: Mapped[List["CommunicationResult"]] = relationship("CommunicationResult", cascade="all, delete-orphan", back_populates="communication")
+class CVoiceFile(Base):
+    __tablename__ = "c_voice_files"
+    c_vf_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    c_id: Mapped[int] = mapped_column(Integer, ForeignKey('communication.c_id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    original_format: Mapped[str] = mapped_column(String(10), nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    duration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    
+    communication: Mapped["Communication"] = relationship("Communication", back_populates="voice_files")
+    stt_results: Mapped[list["CSTTResult"]] = relationship("CSTTResult", back_populates="voice_file", cascade="all, delete-orphan")
+    
+    __table_args__ = (Index('idx_c_id', 'c_id'),) # 특정 대화의 음성파일 조회 시 사용
 
 
-class CommunicationResult(Base):
-    __tablename__ = "c_result"
-    c_result_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    c_id: Mapped[int] = mapped_column(ForeignKey("communication.c_id"), nullable=False)
-    # created at 삭제 (communication 테이블에 있음)
-    sentence_speed: Mapped[Optional[int]] = mapped_column(nullable=True)
-    silence: Mapped[Optional[int]] = mapped_column(nullable=True)
-    filler: Mapped[Optional[int]] = mapped_column(nullable=True)
-    curse: Mapped[Optional[int]] = mapped_column(nullable=True)
-    clearly_meaning: Mapped[Optional[int]] = mapped_column(nullable=True)
-    clarity: Mapped[Optional[int]] = mapped_column(nullable=True)
-    cut: Mapped[Optional[int]] = mapped_column(nullable=True)
-    feedback_body: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+class CSTTResult(Base):
+    __tablename__ = "c_stt_results"
+    c_sr_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    c_id: Mapped[int] = mapped_column(Integer, ForeignKey('communication.c_id', ondelete='CASCADE'), nullable=False, index=True)
+    c_vf_id: Mapped[int] = mapped_column(Integer, ForeignKey('c_voice_files.c_vf_id', ondelete='CASCADE'), nullable=False, index=True)
+    
+    stt_type: Mapped[STTType] = mapped_column(Enum(STTType), nullable=False)
+    json_data: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    
+    communication: Mapped["Communication"] = relationship("Communication", back_populates="stt_results")
+    voice_file: Mapped["CVoiceFile"] = relationship("CVoiceFile", back_populates="stt_results")
+    
+    __table_args__ = (UniqueConstraint('c_id', 'stt_type', name='uq_c_id_stt_type'), 
+                      # 한 c_id당 chirp/long 각 1개씩만 허용
+                      Index('idx_c_id_stt_type', 'c_id', 'stt_type'), # 특정 대화의 특정 STT 타입 결과 조회 시 사용
+                      Index('idx_c_vf_id', 'c_vf_id'),) # 특정 음성파일의 STT 결과 조회 시 사용
 
-    communication: Mapped["Communication"] = relationship("Communication", back_populates="results")
+
+class CBERTResult(Base):
+    __tablename__ = "c_bert_results"
+    c_br_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    c_id: Mapped[int] = mapped_column(Integer, ForeignKey('communication.c_id', ondelete='CASCADE'), nullable=False, unique=True)
+    c_sr_id: Mapped[int] = mapped_column(Integer, ForeignKey('c_stt_results.c_sr_id', ondelete='CASCADE'), nullable=False)
+
+    target_speaker: Mapped[str] = mapped_column(String(20), nullable=False, default="1")
+    curse_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    filler_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    standard_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    analyzed_segments: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    
+    communication: Mapped["Communication"] = relationship("Communication", back_populates="bert_result")
+    result: Mapped[Optional["CResult"]] = relationship("CResult", back_populates="bert_result", uselist=False, cascade="all, delete-orphan")
+
+
+class CResult(Base):
+    __tablename__ = "c_results"
+    c_result_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    c_id: Mapped[int] = mapped_column(Integer, ForeignKey('communication.c_id', ondelete='CASCADE'), nullable=False, unique=True)
+    c_br_id: Mapped[int] = mapped_column(Integer, ForeignKey('c_bert_results.c_br_id', ondelete='CASCADE'), nullable=False, unique=True)
+
+    speed: Mapped[float] = mapped_column(Float, nullable=False)
+    speech_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    silence: Mapped[float] = mapped_column(Float, nullable=False)
+    clarity: Mapped[float] = mapped_column(Float, nullable=False)
+    meaning_clarity: Mapped[float] = mapped_column(Float, nullable=False)
+    cut: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default='')
+    advice: Mapped[str] = mapped_column(Text, nullable=False, default='')
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    
+    communication: Mapped["Communication"] = relationship("Communication", back_populates="result")
+    bert_result: Mapped["CBERTResult"] = relationship("CBERTResult", back_populates="result")
