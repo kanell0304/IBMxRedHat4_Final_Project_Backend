@@ -37,7 +37,7 @@ def create_tables():
     try:
         # 모든 모델 import (Base에 등록하기 위해서임) # 여기 등록 안하면 테이블 생성이 안됨
         from .models import user
-        from .models import presentation
+        from .models import communication
 
         Base.metadata.create_all(bind=sync_engine)
         print("데이터베이스 테이블 생성")

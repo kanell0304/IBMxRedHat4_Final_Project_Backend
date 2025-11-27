@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     refresh_token_expire_sec: int = Field(604800, alias="REFRESH_TOKEN_EXPIRE")
 
     #Google stt API
-    google_api_key: str = Field(..., alias="GOOGLE_API_KEY")
+    GOOGLE_APPLICATION_CREDENTIALS: str = Field(..., alias="GOOGLE_APPLICATION_CREDENTIALS")
+    google_cloud_project_id: str = Field(..., alias="GOOGLE_CLOUD_PROJECT_ID")
 
     model_config = SettingsConfigDict(
         env_file=ENV_FILES,

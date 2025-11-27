@@ -2,6 +2,7 @@
 .env.local
 .env.*.local
 *.env
+spageti-stt-de1456d6a2c0.json
 
 backend/.env
 backend/.env.local
