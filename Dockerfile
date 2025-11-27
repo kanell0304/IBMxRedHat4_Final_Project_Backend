@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir \
   uvicorn[standard]==0.24.0 \
   python-multipart==0.0.6 \
   librosa==0.10.1 \
+  pydub==0.25.1 \
   numpy==1.24.3 \
   scikit-learn==1.3.2 \
   transformers==4.39.3 \
