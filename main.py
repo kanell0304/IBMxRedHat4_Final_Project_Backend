@@ -7,27 +7,19 @@ from contextlib import asynccontextmanager
 # 앱 시작 시 모델 로드
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("FastAPI 서버 시작")
+    print("서버 시작")
     try:
         from app.service.voice_analyzer import get_analyzer
         analyzer = get_analyzer()
-        print("음성 분석 모델 로드 완료")
+        print("음성 분석 모델 로드")
     except Exception as e:
-        print(f"⚠모델 로드 실패: {e}")
-    print("=" * 60)
-
+        print(f"모델 로드 실패: {e}")
     yield
-    print("FastAPI 서버 종료")
+    print("서버 종료")
 
 app = FastAPI(title="Team Project API", description="음성 분석 API", version="1.0.0", lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # 프로덕션에서는 특정 도메인만 허용
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],)
 
 app.include_router(voice_analysis.router)
 
@@ -43,7 +35,7 @@ async def root():
         }
     }
 
-
+# 서버 구동 상태 확인
 @app.get("/health")
 async def health():
     return {"status": "ok"}
