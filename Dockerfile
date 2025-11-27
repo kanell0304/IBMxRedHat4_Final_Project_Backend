@@ -27,7 +27,8 @@ RUN pip install --no-cache-dir \
   google-cloud-speech==2.26.0 \
   alembic==1.13.1 \
   asyncmy==0.2.9 \
-  pymysql==1.1.0
+  pymysql==1.1.0 \
+  pydub==0.25.1
 
 COPY . .
 EXPOSE 8081
