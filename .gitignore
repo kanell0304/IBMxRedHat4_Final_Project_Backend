@@ -5,19 +5,24 @@
 
 backend/.env
 backend/.env.local
-backend/__pycache__/
-backend/*.pyc
 backend/venv/
 backend/.venv/
 backend/env/
+.venv/
+venv/
+env/
 
 .vscode/
 .idea/
+.fleet/
 *.swp
 *.swo
 
 .DS_Store
+.AppleDouble
+.LSOverride
 Thumbs.db
+desktop.ini
 
 *.log
 
@@ -27,7 +32,16 @@ Thumbs.db
 
 __pycache__/
 *.pyc
-app/__pycache__/
-app/database/__pycache__/
-app/database/models/__pycache__/
-app/core/__pycache__/
+.pytest_cache/
+.mypy_cache/
+.tox/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+
+I_P_BERT/
+C_BERT/
