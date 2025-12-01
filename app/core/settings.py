@@ -4,8 +4,8 @@ from datetime import timedelta
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BASE_DIR = Path(__file__).resolve().parents[3]
-ENV_FILES = [BASE_DIR / ".env", BASE_DIR / "backend" / ".env"]
+BASE_DIR = Path(__file__).resolve().parents[2]
+ENV_FILES = BASE_DIR / ".env"
 
 class Settings(BaseSettings):
     db_user: str = Field(..., alias="DB_USER")
@@ -19,8 +19,12 @@ class Settings(BaseSettings):
     access_token_expire_sec: int = Field(900, alias="ACCESS_TOKEN_EXPIRE")
     refresh_token_expire_sec: int = Field(604800, alias="REFRESH_TOKEN_EXPIRE")
 
+    #Google stt API
+    GOOGLE_APPLICATION_CREDENTIALS: str = Field(..., alias="GOOGLE_APPLICATION_CREDENTIALS")
+    google_cloud_project_id: str = Field(..., alias="GOOGLE_CLOUD_PROJECT_ID")
+
     model_config = SettingsConfigDict(
-        env_file=[str(p) for p in ENV_FILES],
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         extra="allow",
         populate_by_name=True,
