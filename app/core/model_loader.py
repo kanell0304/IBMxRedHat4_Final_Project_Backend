@@ -14,9 +14,9 @@ S3_MODEL_PREFIX = os.getenv("S3_MODEL_PREFIX", "models/")
 
 # 관리할 모델 파일 목록
 MODEL_FILES = [
-    "emotion_classifier.pkl",
-    "scaler.pkl",
-    "label_mapping.pkl"
+    "emotion_classifier.pkl", # 가중치 파일
+    "scaler.pkl", # 정규화 데이터
+    "label_mapping.pkl" # 라벨 매핑 데이터
 ]
 
 
