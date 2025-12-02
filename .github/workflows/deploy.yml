@@ -2,7 +2,7 @@ name: Deploy to AWS
 
 on:
   push:
-    branches: [main]
+    branches: [develop_presentation]
   workflow_dispatch:  # 수동 실행 가능
 
 env:

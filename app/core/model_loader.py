@@ -98,8 +98,7 @@ def ensure_models_ready() -> bool:
         print("모든 모델 파일이 로컬에 존재합니다.")
         for name in MODEL_FILES:
             size_mb = (MODEL_DIR / name).stat().st_size / (1024 * 1024)
-            print(f"  ✓ {name} ({size_mb:.1f} MB)")
-        print("=" * 50)
+            print(f"  {name} ({size_mb:.1f} MB)")
         return True
 
     # 로컬에 없는 파일이 있음
