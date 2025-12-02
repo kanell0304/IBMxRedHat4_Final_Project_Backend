@@ -1,7 +1,9 @@
 import boto3
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 from botocore.exceptions import ClientError, NoCredentialsError
+load_dotenv()
 
 # 모델 파일 경로
 MODEL_DIR = Path(__file__).parent.parent / "ml_models"
@@ -44,32 +46,32 @@ def download_model_from_s3(model_name: str, force: bool = False) -> bool:
     s3_key = f"{S3_MODEL_PREFIX}{model_name}"
 
     if local_path.exists() and not force:
-        print(f"  ✓ {model_name} 이미 존재 (스킵)")
+        print(f"  {model_name} 이미 존재 (스킵)")
         return True
 
     try:
         s3 = get_s3_client()
-        print(f"  ⬇ {model_name} S3에서 다운로드 중...")
+        print(f"  {model_name} S3에서 다운로드 중...")
 
         MODEL_DIR.mkdir(parents=True, exist_ok=True)
         s3.download_file(S3_BUCKET, s3_key, str(local_path))
 
         size_mb = local_path.stat().st_size / (1024 * 1024)
-        print(f"  ✓ {model_name} 완료 ({size_mb:.1f} MB)")
+        print(f"  {model_name} 완료 ({size_mb:.1f} MB)")
         return True
 
     except ClientError as e:
         error_code = e.response['Error']['Code']
         if error_code == '404':
-            print(f"  ✗ {model_name} S3에 없음")
+            print(f"  {model_name} S3에 없음")
         else:
-            print(f"  ✗ {model_name} 다운로드 실패: {e}")
+            print(f"  {model_name} 다운로드 실패: {e}")
         return False
     except NoCredentialsError:
-        print(f"  ✗ AWS 자격 증명 없음")
+        print(f"  AWS 자격 증명 없음")
         return False
     except Exception as e:
-        print(f"  ✗ {model_name} 오류: {e}")
+        print(f"  {model_name} 오류: {e}")
         return False
 
 
@@ -86,9 +88,6 @@ def download_all_models_from_s3(force: bool = False) -> bool:
 
 
 def ensure_models_ready() -> bool:
-    print("=" * 50)
-    print("🔍 모델 파일 확인 중...")
-    print("=" * 50)
 
     # 로컬 파일 확인
     local_status = check_local_models()
