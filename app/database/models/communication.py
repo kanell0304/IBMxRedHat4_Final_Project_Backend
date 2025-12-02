@@ -43,7 +43,7 @@ class CVoiceFile(Base):
     
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     original_format: Mapped[str] = mapped_column(String(10), nullable=False)
-    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary(length=4294967295), nullable=False)
     duration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
     

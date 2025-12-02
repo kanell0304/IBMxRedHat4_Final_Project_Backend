@@ -4,26 +4,28 @@ import json
 
 # Google STT 연결
 
+# chirp 사용 가능한 리전 지정
+location = "us" 
+client = speech_v2.SpeechClient(client_options={"api_endpoint": f"{location}-speech.googleapis.com"})
+
 class STTService:
     def __init__(self, project_id: str):
         self.project_id = project_id
-        self.client = speech_v2.SpeechClient()
+        self.client = client
     
     async def transcribe_chirp(self, wav_data: bytes) -> Dict[str, Any]:
         # Chirp 모델로 화자분리
         config = speech_v2.RecognitionConfig(
             auto_decoding_config=speech_v2.AutoDetectDecodingConfig(),
             language_codes=["ko-KR"],
-            model="chirp",
+            model="chirp_3",
             features=speech_v2.RecognitionFeatures(
-                enable_speaker_diarization=True,
-                diarization_speaker_count=0,
-                enable_word_time_offsets=True,
+                enable_word_time_offsets=True
             ),
         )
         
         request = speech_v2.RecognizeRequest(
-            recognizer=f"projects/{self.project_id}/locations/global/recognizers/_",
+            recognizer=f"projects/{self.project_id}/locations/{location}/recognizers/chirp",
             config=config,
             content=wav_data,
         )
@@ -62,12 +64,12 @@ class STTService:
             model="long",
             features=speech_v2.RecognitionFeatures(
                 enable_word_time_offsets=True,
-                enable_word_confidence=True,
+                enable_word_confidence=True
             ),
         )
         
         request = speech_v2.RecognizeRequest(
-            recognizer=f"projects/{self.project_id}/locations/global/recognizers/_",
+            recognizer=f"projects/{self.project_id}/locations/{location}/recognizers/long",
             config=config,
             content=wav_data,
         )
@@ -88,8 +90,8 @@ class STTService:
                         "words": [
                             {
                                 "word": word.word,
-                                "startTime": f"{word.start_offset.seconds}.{word.start_offset.nanos // 1000000:03d}s",
-                                "endTime": f"{word.end_offset.seconds}.{word.end_offset.nanos // 1000000:03d}s",
+                                "startTime": f"{word.start_offset.seconds}.{word.start_offset.microseconds // 1000:03d}s",
+                                "endTime": f"{word.end_offset.seconds}.{word.end_offset.microseconds // 1000:03d}s",
                                 "confidence": word.confidence
                             }
                             for word in alt.words

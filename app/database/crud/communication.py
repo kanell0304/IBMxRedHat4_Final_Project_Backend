@@ -52,7 +52,7 @@ async def create_stt_result(
         c_id=c_id,
         c_vf_id=c_vf_id,
         stt_type=stt_type,
-        c_json_data=json_data
+        json_data=json_data
     )
     db.add(stt_result)
     await db.commit()
