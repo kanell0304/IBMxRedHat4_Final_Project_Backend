@@ -1,3 +1,3 @@
-from . import voice_analysis
+from . import voice_analysis, communication, image
 
-__all__ = ["voice_analysis"]
+__all__ = ["voice_analysis", "communication", "image"]
