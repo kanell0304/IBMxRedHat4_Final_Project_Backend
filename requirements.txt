@@ -7,9 +7,9 @@ pandas
 librosa>=0.10.1
 pydub==0.25.1
 
-# PyTorch (CPU 버전 - 별도 설치 권장)
-# torch==2.1.0
-# torchaudio==2.1.0
+# PyTorch (CPU 버전)
+torch==2.1.0
+torchaudio==2.1.0
 
 transformers==4.39.3
 
