@@ -15,7 +15,7 @@ stt_service = STTService(project_id=settings.google_cloud_project_id)
 
 
 @router.post("/upload", response_model=CommunicationResponse)
-async def upload_voice(
+async def upload_wav(
     user_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db)
@@ -74,3 +74,21 @@ async def process_stt(
     )
     
     return [chirp_stt, long_stt]
+
+
+@router.get("/health")
+async def stt_health_check():
+    """STT 서비스 상태 확인"""
+    try:
+        project_id = settings.google_cloud_project_id
+        return {
+            "status": "ok",
+            "service": "Google Speech-to-Text",
+            "project_id": project_id,
+            "models": ["chirp", "long"]
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
