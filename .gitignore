@@ -4,6 +4,8 @@
 *.env
 spageti-stt-de1456d6a2c0.json
 
+app/ml_models/*.pkl
+
 backend/.env
 backend/.env.local
 backend/venv/
