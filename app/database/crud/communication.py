@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from ..models.communication import Communication, CVoiceFile, CSTTResult, STTType
+from ..models.communication import Communication, CVoiceFile, CSTTResult
 from typing import Optional
 
 # 대화분석 CRUD
@@ -45,13 +45,11 @@ async def create_stt_result(
     db: AsyncSession,
     c_id: int,
     c_vf_id: int,
-    stt_type: STTType,
     json_data: dict
 ) -> CSTTResult:
     stt_result = CSTTResult(
         c_id=c_id,
         c_vf_id=c_vf_id,
-        stt_type=stt_type,
         json_data=json_data
     )
     db.add(stt_result)

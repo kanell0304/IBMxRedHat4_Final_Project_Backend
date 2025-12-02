@@ -13,11 +13,6 @@ class CommunicationStatus(str, enum.Enum):
     FAILED = "failed"
 
 
-class STTType(str, enum.Enum):
-    CHIRP = "chirp"
-    LONG = "long"
-
-
 class Communication(Base):
     __tablename__ = "communication"
     c_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -58,17 +53,16 @@ class CSTTResult(Base):
     c_sr_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     c_id: Mapped[int] = mapped_column(Integer, ForeignKey('communication.c_id', ondelete='CASCADE'), nullable=False, index=True)
     c_vf_id: Mapped[int] = mapped_column(Integer, ForeignKey('c_voice_files.c_vf_id', ondelete='CASCADE'), nullable=False, index=True)
-    
-    stt_type: Mapped[STTType] = mapped_column(Enum(STTType), nullable=False)
+
     json_data: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-    
+
     communication: Mapped["Communication"] = relationship("Communication", back_populates="stt_results")
     voice_file: Mapped["CVoiceFile"] = relationship("CVoiceFile", back_populates="stt_results")
-    
-    __table_args__ = (UniqueConstraint('c_id', 'stt_type', name='uq_c_id_stt_type'), 
-                      # 한 c_id당 chirp/long 각 1개씩만 허용
-                      Index('idx_c_id_stt_type', 'c_id', 'stt_type'), # 특정 대화의 특정 STT 타입 결과 조회 시 사용
+
+    __table_args__ = (UniqueConstraint('c_id', name='uq_c_id'),
+                      # 한 c_id당 STT 결과 1개만 허용
+                      Index('idx_c_id', 'c_id'), # 특정 대화의 STT 결과 조회 시 사용
                       Index('idx_c_vf_id', 'c_vf_id'),) # 특정 음성파일의 STT 결과 조회 시 사용
 
 

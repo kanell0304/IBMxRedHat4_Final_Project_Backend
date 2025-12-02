@@ -5,7 +5,6 @@ from app.database.crud import communication as crud
 from app.database.schemas.communication import CommunicationResponse, VoiceFileResponse, STTResultResponse
 from app.service.audio_service import AudioService
 from app.service.stt_service import STTService
-from app.database.models.communication import STTType
 from app.core.settings import settings
 
 router = APIRouter(prefix="/communication", tags=["Communication"])
@@ -39,7 +38,7 @@ async def upload_wav(
     return communication
 
 
-@router.post("/{c_id}/stt", response_model=list[STTResultResponse])
+@router.post("/{c_id}/stt", response_model=STTResultResponse)
 async def process_stt(
     c_id: int,
     db: AsyncSession = Depends(get_db)
@@ -47,33 +46,23 @@ async def process_stt(
     communication = await crud.get_communication_by_id(db, c_id)
     if not communication:
         raise HTTPException(status_code=404, detail="Communication not found")
-    
+
     voice_file = await crud.get_voice_file_by_c_id(db, c_id)
     if not voice_file:
         raise HTTPException(status_code=404, detail="Voice file not found")
-    
+
     wav_data, _ = audio_service.convert_to_wav(voice_file.data, voice_file.original_format)
-    
+
     chirp_result = await stt_service.transcribe_chirp(wav_data)
-    long_result = await stt_service.transcribe_long(wav_data)
-    
-    chirp_stt = await crud.create_stt_result(
+
+    stt = await crud.create_stt_result(
         db=db,
         c_id=c_id,
         c_vf_id=voice_file.c_vf_id,
-        stt_type=STTType.CHIRP,
         json_data=chirp_result
     )
-    
-    long_stt = await crud.create_stt_result(
-        db=db,
-        c_id=c_id,
-        c_vf_id=voice_file.c_vf_id,
-        stt_type=STTType.LONG,
-        json_data=long_result
-    )
-    
-    return [chirp_stt, long_stt]
+
+    return stt
 
 
 @router.get("/health")
@@ -85,7 +74,7 @@ async def stt_health_check():
             "status": "ok",
             "service": "Google Speech-to-Text",
             "project_id": project_id,
-            "models": ["chirp", "long"]
+            "model": "chirp_3"
         }
     except Exception as e:
         return {

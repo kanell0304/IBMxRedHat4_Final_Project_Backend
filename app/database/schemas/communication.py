@@ -25,9 +25,8 @@ class STTResultResponse(BaseModel):
     c_sr_id: int
     c_id: int
     c_vf_id: int
-    stt_type: str
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
