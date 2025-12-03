@@ -6,7 +6,8 @@ from botocore.exceptions import ClientError, NoCredentialsError
 load_dotenv()
 
 # 모델 파일 경로
-MODEL_DIR = Path(__file__).parent.parent / "ml_models"
+# MODEL_DIR = Path(__file__).parent.parent / "ml_models"
+MODEL_DIR = Path("/tmp/ml_models")
 
 # S3 설정
 S3_BUCKET = os.getenv("S3_MODEL_BUCKET", "")
