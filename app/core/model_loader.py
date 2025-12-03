@@ -7,7 +7,12 @@ load_dotenv()
 
 # 모델 파일 경로
 # MODEL_DIR = Path(__file__).parent.parent / "ml_models"
-MODEL_DIR = Path("/tmp/ml_models")
+if os.getenv("RUNNING_IN_DOCKER") == "true":
+    # 1. Docker 환경: 쓰기 권한이 보장된 절대 경로 (/tmp) 사용
+    MODEL_DIR = Path("/tmp/ml_models")
+else:
+    # 2. 로컬 환경: 프로젝트의 상대 경로를 사용 (기존 로직 복원)
+    MODEL_DIR = Path(__file__).parent.parent / "ml_models"
 
 # S3 설정
 S3_BUCKET = os.getenv("S3_MODEL_BUCKET", "")

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import voice_analysis
 from contextlib import asynccontextmanager
+from app.core.model_loader import ensure_models_ready
 
 
 @asynccontextmanager
@@ -10,7 +11,6 @@ async def lifespan(app: FastAPI):
 
     # 1. 모델 파일 확인 (로컬 우선, 없으면 S3)
     try:
-        from app.core.model_loader import ensure_models_ready
         models_ready = ensure_models_ready()
 
         if not models_ready:
