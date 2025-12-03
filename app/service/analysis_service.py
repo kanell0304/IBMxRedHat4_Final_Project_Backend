@@ -1,5 +1,5 @@
 from typing import Dict
-from app.service.i_inference_service import get_inference_service
+from app.service.i_bert_service import get_inference_service
 from app.service.llm.openai_service import OpenAIService
 from app.service.llm.watsonx_service import WatsonxService
 from app.database.schemas.interview import InterviewReport
