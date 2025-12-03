@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Dict, Optional
 import warnings
 
+from app.core.model_loader import MODEL_DIR
+
 warnings.filterwarnings('ignore')
 
 class VoiceAnalyzer:
@@ -217,5 +219,5 @@ _analyzer_instance = None
 def get_analyzer() -> VoiceAnalyzer:
     global _analyzer_instance
     if _analyzer_instance is None:
-        _analyzer_instance = VoiceAnalyzer()
+        _analyzer_instance = VoiceAnalyzer(model_dir=str(MODEL_DIR))
     return _analyzer_instance
