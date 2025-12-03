@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import voice_analysis
 from app.routers import bert
+from app.routers import interview
 from contextlib import asynccontextmanager
 
 
@@ -22,6 +23,7 @@ app = FastAPI(title="Team Project API", description="음성 분석 API", version
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],)
 
+
 app.include_router(voice_analysis.router)
 
 @app.get("/")
@@ -41,5 +43,6 @@ async def root():
 async def health():
     return {"status": "ok"}
 
-
 app.include_router(bert.router)
+app.include_router(interview.router)
+
