@@ -5,7 +5,7 @@ import tempfile
 import os
 
 # ffmpeg 경로 설정 -> 현재 c:/ffmpeg 폴더 안에 있음
-os.environ["PATH"] = r"C:\ffmpeg\bin" + os.pathsep + os.environ.get("PATH", "")
+# os.environ["PATH"] = r"C:\ffmpeg\bin" + os.pathsep + os.environ.get("PATH", "")
 
 from pydub import AudioSegment
 
