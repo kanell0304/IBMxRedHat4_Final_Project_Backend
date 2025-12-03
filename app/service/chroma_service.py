@@ -95,20 +95,3 @@ def _predict_comm_labels(text: str) -> Dict[str, Any]:
   from app.service.c_bert_service import get_inference_service
   service = get_inference_service()
   return service.predict_labels(text)
-
-
-def process_comm_answer(answer_id: int, session_id: int, question_no: int, text: str):
-  labels = _predict_comm_labels(text)
-
-  save_chroma(
-    answer_id=answer_id,
-    session_id=session_id,
-    question_no=question_no,
-    text=text,
-    labels=labels,
-  )
-
-  return {
-    "transcript": text,
-    "labels": labels,
-  }
