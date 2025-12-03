@@ -167,7 +167,7 @@ class VoiceAnalyzer:
                 # 전체 감정별 확률
                 all_emotion_scores = {self.idx_to_emotion[i]: float(prob * 100) for i, prob in enumerate(emotion_proba)}
 
-                # Anxious와 Embarrassed만 추출
+                # Anxious(긴장)와 Embarrassed(당황)만 추출
                 target_emotions = ['Anxious', 'Embarrassed']
                 filtered_scores = {}
 
@@ -175,7 +175,7 @@ class VoiceAnalyzer:
                     if emotion in all_emotion_scores:
                         filtered_scores[emotion] = all_emotion_scores[emotion]
 
-                # 두 감정의 합으로 정규화 (합이 100%가 되도록)
+                # 두 감정의 합으로 정규화 (합이 100%가 되도록) -> 6개에서 2개로 줄였으니까
                 total = sum(filtered_scores.values())
                 if total > 0:
                     emotion_scores = {k: (v / total) * 100 for k, v in filtered_scores.items()}

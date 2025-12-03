@@ -1,0 +1,120 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [develop_presentation]
+  workflow_dispatch:  # 수동 실행 가능
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: teamproject-backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. 코드 체크아웃
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. AWS 자격 증명 설정
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 3. 모델 파일이 있으면 S3에 업로드
+      - name: Upload models to S3
+        run: |
+          echo "📤 모델 파일 S3 업로드 확인 중..."
+          
+          if [ -d "app/ml_models" ]; then
+            for file in app/ml_models/*.pkl; do
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                echo "  업로드: $filename"
+                aws s3 cp "$file" "s3://${{ secrets.S3_MODEL_BUCKET }}/$filename"
+              fi
+            done
+            echo "✅ S3 업로드 완료"
+          else
+            echo "⚠️ ml_models 폴더 없음 (스킵)"
+          fi
+
+      # 4. ECR 로그인
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 5. Docker 이미지 빌드 & 푸시
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "🐳 Docker 이미지 빌드 중..."
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+          echo "📤 ECR에 푸시 중..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+          echo "✅ Docker 이미지 푸시 완료"
+          echo "IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:latest" >> $GITHUB_ENV
+
+      # 6. EC2에 배포
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "🚀 EC2 배포 시작..."
+            
+            # 환경 변수 설정
+            export AWS_REGION=${{ env.AWS_REGION }}
+            export ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+            export ECR_REPOSITORY=${{ env.ECR_REPOSITORY }}
+            export S3_MODEL_BUCKET=${{ secrets.S3_MODEL_BUCKET }}
+            
+            # ECR 로그인
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+            
+            # 기존 컨테이너 중지 및 삭제
+            docker stop teamproject-backend 2>/dev/null || true
+            docker rm teamproject-backend 2>/dev/null || true
+            
+            # 오래된 이미지 정리
+            docker image prune -af
+            
+            # 새 이미지 풀
+            docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
+            
+            # 컨테이너 실행
+            docker run -d \
+              --name teamproject-backend \
+              --restart unless-stopped \
+              -p 8081:8081 \
+              -e S3_MODEL_BUCKET=$S3_MODEL_BUCKET \
+              -e S3_MODEL_PREFIX= \
+              -e AWS_REGION=$AWS_REGION \
+              -e DB_HOST=${{ secrets.DB_HOST }} \
+              -e DB_PORT=${{ secrets.DB_PORT }} \
+              -e DB_NAME=${{ secrets.DB_NAME }} \
+              -e DB_USER=${{ secrets.DB_USER }} \
+              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              $ECR_REGISTRY/$ECR_REPOSITORY:latest
+            
+            # 상태 확인
+            sleep 10
+            docker ps
+            
+            # 헬스 체크
+            curl -f http://localhost:8081/health || echo "⚠️ 헬스 체크 실패"
+            
+            echo "✅ 배포 완료!"
