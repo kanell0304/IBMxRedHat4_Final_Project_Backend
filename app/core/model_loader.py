@@ -5,13 +5,12 @@ from dotenv import load_dotenv
 from botocore.exceptions import ClientError, NoCredentialsError
 load_dotenv()
 
-# 모델 파일 경로
-# MODEL_DIR = Path(__file__).parent.parent / "ml_models"
-if os.getenv("RUNNING_IN_DOCKER") == "true":
-    # 1. Docker 환경: 쓰기 권한이 보장된 절대 경로 (/tmp) 사용
+# 모델 파일 경로 - S3 사용시 /tmp, 아니면 로컬 경로
+if os.getenv("S3_MODEL_BUCKET"):
+    # ECS/Docker 환경: S3에서 다운로드하므로 /tmp 사용
     MODEL_DIR = Path("/tmp/ml_models")
 else:
-    # 2. 로컬 환경: 프로젝트의 상대 경로를 사용 (기존 로직 복원)
+    # 로컬 환경: 프로젝트 상대 경로 사용
     MODEL_DIR = Path(__file__).parent.parent / "ml_models"
 
 # S3 설정
