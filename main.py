@@ -6,22 +6,42 @@ from app.routers import interview
 from contextlib import asynccontextmanager
 
 
-# 앱 시작 시 모델 로드
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("서버 시작")
+    print("\n서버 시작")
+
+    # 1. 모델 파일 확인 (로컬 우선, 없으면 S3)
+    try:
+        from app.core.model_loader import ensure_models_ready
+        models_ready = ensure_models_ready()
+
+        if not models_ready:
+            print("일부 모델 파일이 없습니다. 일부 기능이 제한될 수 있습니다.")
+    except Exception as e:
+        print(f"모델 파일 확인 실패: {e}")
+
+    # 2. 음성 분석기 로드
     try:
         from app.service.voice_analyzer import get_analyzer
         analyzer = get_analyzer()
-        print("음성 분석 모델 로드")
+        print("음성 분석 모델 로드 완료")
     except Exception as e:
         print(f"모델 로드 실패: {e}")
+
+    print("")
     yield
-    print("서버 종료")
+    print("\n서버 종료")
+
 
 app = FastAPI(title="Team Project API", description="음성 분석 API", version="1.0.0", lifespan=lifespan)
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 app.include_router(voice_analysis.router)
