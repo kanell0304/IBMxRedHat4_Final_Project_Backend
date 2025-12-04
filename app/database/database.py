@@ -39,6 +39,10 @@ def create_tables():
         from .models import user
         from .models import communication
         from .models import image
+        from .models import category
+        from .models import presentation
+        from .models import audio
+        from .models import interview
 
         Base.metadata.create_all(bind=sync_engine)
         print("데이터베이스 테이블 생성")

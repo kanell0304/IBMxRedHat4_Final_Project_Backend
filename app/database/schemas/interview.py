@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Dict, Any
 
 
 # 문제 표현과 수정 표현을 한 쌍으로 묶음
@@ -24,4 +24,14 @@ class InterviewReport(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     transcript:str=Field(..., description="STT 변환 면접 답변 텍스트")
-    
+
+
+# process
+class ProcessAnswerResponse(BaseModel):
+    transcript: str
+    labels: Dict[str, Any]
+
+
+class AnswerUploadResponse(BaseModel):
+    answer_id: int
+    audio_path: str

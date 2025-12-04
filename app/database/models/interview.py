@@ -27,8 +27,8 @@ class InterviewQuestion(Base):
 
   q_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
   common_question: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False) # 공통 질문
-  job_q_id: Mapped[Optional[int]] = mapped_column(ForeignKey("job_questions.job_question_id"), nullable=True) # 직무별 질문
   job_q_text: Mapped[Optional[str]] = mapped_column(String(500), nullable=True) # 질문 텍스트
+  job_q_id: Mapped[Optional[int]] = mapped_column(ForeignKey("job_questions.job_q_id"), nullable=True) # 직무별 질문
 
 
 #사용자가 제출한 인터뷰 답변

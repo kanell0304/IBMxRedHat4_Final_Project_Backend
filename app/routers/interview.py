@@ -1,6 +1,11 @@
-from fastapi import APIRouter, HTTPException
 from app.service.analysis_service import get_analysis_service
-from app.database.schemas.interview import AnalyzeRequest, InterviewReport
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.service.chroma_service import i_process_answer
+from app.database.database import get_db
+from app.database.models.interview import InterviewAnswer
+from app.database.schemas.interview import AnalyzeRequest, InterviewReport, ProcessAnswerResponse, AnswerUploadResponse
 
 
 router=APIRouter(prefix="/interview", tags=["interview"])
