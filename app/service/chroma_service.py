@@ -47,6 +47,8 @@ def _i_predict_labels(text: str) -> Dict[str, Any]:
 # 모의면접용
 async def i_process_answer(answer_id: int, db):
   answer: InterviewAnswer | None = await db.get(InterviewAnswer, answer_id)
+  if not answer:
+    raise ValueError("해당 answer_id를 찾을 수 없습니다.")
   transcript = answer.transcript
 
   # STT

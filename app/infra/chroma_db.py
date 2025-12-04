@@ -1,14 +1,11 @@
 import chromadb
-from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
+from pathlib import Path
 
-# chroma client 생성
-client = chromadb.Client(
-  Settings(
-    chroma_db_impl="duckdb+parquet",
-    persist_directory="chroma_db"  # 저장 경로
-  )
-)
+# client
+persist_dir = Path(__file__).resolve().parents[2] / "chroma_db"
+persist_dir.mkdir(parents=True, exist_ok=True)
+client = chromadb.PersistentClient(path=str(persist_dir))
 
 # Collection 생성/가져오기
 collection = client.get_or_create_collection(
