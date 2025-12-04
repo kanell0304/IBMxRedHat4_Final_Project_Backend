@@ -5,25 +5,38 @@ from app.database.models.interview import InterviewAnswer
 from app.infra.chroma_db import collection, get_embedding
 
 # 텍스트를 임베딩하고 ChromaDB에 저장
+# Chroma 메타데이터는 str/int/float/bool만 허용
+def _flatten_labels(labels: Dict[str, Any]) -> Dict[str, Any]:
+  flat_labels: Dict[str, Any] = {}  # chroma 메타데이터용 단순 키/값
+  for key, value in labels.items():
+    if isinstance(value, dict):
+      score_val = value.get("score")  # 확률 값
+      label_flag = value.get("label")  # 0/1 플래그
+      if score_val is not None:
+        flat_labels[f"{key}_score"] = float(score_val)
+      if label_flag is not None:
+        flat_labels[f"{key}_label"] = int(label_flag)
+      continue
+    flat_labels[key] = value if isinstance(value, (str, int, float, bool)) else str(value)
+  return flat_labels
+
 def save_chroma(answer_id: int, session_id: int, question_no: int, text: str, labels: Dict[str, Any]):
   embedding = get_embedding(text)  # 텍스트를 숫자로 임베딩
+
+  metadata = {
+    "answer_id": answer_id, # DB 답변 ID (추적용)
+    "session_id": session_id, # 같은 인터뷰 세션 묶음 식별
+    "question_no": question_no,
+    **_flatten_labels(labels), # BERT 결과를 평탄화해 저장
+  }
 
   # 벡터, 원문, 메타데이터를 한 묶음으로 collection에 저장
   collection.add(
     ids=[f"answer_{answer_id}"], # 고유 ID로 재검색 시 바로 특정
     documents=[text],# 검색 결과로 보여줄 실제 답변 텍스트
-    metadatas=[{
-      "answer_id": answer_id, # DB 답변 ID (추적용)
-      "session_id": session_id, # 같은 인터뷰 세션 묶음 식별
-      "question_no": question_no,
-      **labels, # BERT 결과도 함께 저장해 필터/검색용으로 활용
-    }],
+    metadatas=[metadata],
     embeddings=[embedding], # 유사도 검색의 핵심 데이터
   )
-
-# 이전 이름 호환
-store_answer_in_chroma = save_chroma
-chroma = save_chroma
 
 # STT로 받은 값 데이터에서 transcript만 모아 한 문장으로 합침
 def _extract_transcript(stt_result: Dict[str, Any]) -> str:
@@ -49,7 +62,7 @@ async def i_process_answer(answer_id: int, db):
   answer: InterviewAnswer | None = await db.get(InterviewAnswer, answer_id)
   if not answer:
     raise ValueError("해당 answer_id를 찾을 수 없습니다.")
-  transcript = answer.transcript
+  transcript = answer.transcript  # 기존 STT 결과가 있으면 재사용
 
   # STT
   if not transcript:
@@ -91,9 +104,3 @@ async def i_process_answer(answer_id: int, db):
     "transcript": transcript,
     "labels": labels,
   }
-
-# 대화분석용
-def _predict_comm_labels(text: str) -> Dict[str, Any]:
-  from app.service.c_bert_service import get_inference_service
-  service = get_inference_service()
-  return service.predict_labels(text)
