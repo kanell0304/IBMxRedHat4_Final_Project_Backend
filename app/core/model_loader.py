@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from botocore.exceptions import ClientError, NoCredentialsError
 load_dotenv()
 
-# 모델 파일 경로
+# 모델 파일 경로1
 # MODEL_DIR = Path(__file__).parent.parent / "ml_models"
 if os.getenv("RUNNING_IN_DOCKER") == "true":
     # 1. Docker 환경: 쓰기 권한이 보장된 절대 경로 (/tmp) 사용

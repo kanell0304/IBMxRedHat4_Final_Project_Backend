@@ -11,7 +11,7 @@ RUN apt-get update && \
     ffmpeg \
   && rm -rf /var/lib/apt/lists/*
   
-# requirements.txt 기반 설치 (권장)
+# requirements.txt 기반 설치 (권장)1
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

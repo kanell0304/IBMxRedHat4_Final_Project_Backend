@@ -4,7 +4,7 @@ from typing import Optional
 import tempfile
 import os
 
-# ffmpeg 경로 설정 -> 현재 c:/ffmpeg 폴더 안에 있음
+# ffmpeg 경로 설정 -> 현재 c:/ffmpeg 폴더 안에 있음1
 # os.environ["PATH"] = r"C:\ffmpeg\bin" + os.pathsep + os.environ.get("PATH", "")
 
 from pydub import AudioSegment
