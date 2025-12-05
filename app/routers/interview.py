@@ -7,6 +7,7 @@ from app.service.chroma_service import i_process_answer
 from app.database.database import get_db
 from app.database.models.interview import InterviewAnswer
 from app.database.schemas.interview import AnalyzeRequest,InterviewReport,ProcessAnswerResponse,AnswerUploadResponse
+from app.database.crud.interview import get_answer, save_answer_audio
 
 
 router=APIRouter(prefix="/interview", tags=["interview"])
@@ -23,20 +24,11 @@ async def analyze_interview(request:AnalyzeRequest):
 
 
 
-
-
-# 밑에 코드 무시해주세여
 @router.post("/answers/{answer_id}/process", response_model=ProcessAnswerResponse)
 async def process_interview_answer(
     answer_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    - answer_id로 인터뷰 답변을 조회
-    - transcript가 없으면 audio_path를 STT로 변환 후 저장
-    - BERT 분류 결과를 저장
-    - chromadb에 transcript+메타데이터 저장
-    """
     try:
         return await i_process_answer(answer_id, db)
     except ValueError as e:
@@ -51,25 +43,15 @@ async def upload_interview_answer_audio(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    STT/Chroma 테스트용: 특정 answer_id의 audio_path를 업로드한 파일로 교체
-    """
-    answer = await db.get(InterviewAnswer, answer_id)
+    answer = await get_answer(db, answer_id)
     if not answer:
         raise HTTPException(status_code=404, detail="answer_id를 찾을 수 없습니다.")
 
     data = await file.read()
-    ext = (Path(file.filename).suffix or ".wav").lstrip(".")
-
-    # DB에 바이너리/포맷 저장 (로컬 파일 저장하지 않음)
-    answer.audio_data = data
-    answer.audio_format = ext
-    answer.audio_path = None
-    await db.commit()
-    await db.refresh(answer)
+    await save_answer_audio(db, answer, data, file.filename)
 
     return AnswerUploadResponse(
         answer_id=answer_id,
-        audio_format=answer.audio_format,
+        audio_format=answer.audio_format or "",
         size=len(data),
     )
