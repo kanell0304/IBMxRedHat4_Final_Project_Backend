@@ -34,6 +34,7 @@ class Token(BaseModel):
     class Config:
         orm_mode = True
 
+# kakao에서 필요한 필드 추가
 class KakaoCallbackRequest(BaseModel):
     code: str
 

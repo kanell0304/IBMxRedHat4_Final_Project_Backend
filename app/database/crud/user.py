@@ -93,38 +93,34 @@ async def delete_user(db: AsyncSession, user_id: str) -> bool:
 # 모든 유저 조회
 async def get_all_user(db: AsyncSession) -> List[User]:
     result = await db.execute(select(User))
+
     return result.scalars().all()
 
 
 # 소셜 ID로 유저 조회
 async def get_user_by_social_id(db: AsyncSession, provider: str, social_id: str) -> User | None:
-    result = await db.execute(
-        select(User).where(
-            User.social_provider == provider,
-            User.social_id == social_id
-        )
-    )
+    result = await db.execute(select(User).where(User.social_provider == provider, User.social_id == social_id))
+
     return result.scalar_one_or_none()
 
 
 # 소셜 유저 생성
-async def create_social_user(db: AsyncSession, 
-                             email: str, 
-                             username: str, 
-                             nickname: str,
-                             social_provider: str,
-                             social_id: str) -> User:
-    user = User(
+async def create_social_user(db: AsyncSession, email: str, username: str, nickname: str, social_provider: str, social_id: str) -> User:
+
+    # kakao api로 받아온 값들로 회원가입 로직 수행(단, 소셜 회원가입이기때문에 is_social=1)
+    user = User( # 유저 객체 생성
         email=email,
         username=username,
         nickname=nickname,
         is_social=1,
         social_provider=social_provider,
         social_id=social_id,
-        password=None,
-        phone_number=None
+        password=None, # 어차피 kakao 계정으로 로그인 할 거기 때문에 필요 x
+        phone_number=None # kakao로 로그인 하기때문에 필요 x -> 폰번호는 어차피 비밀번호 찾기에 사용할 예정
     )
+
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
     return user

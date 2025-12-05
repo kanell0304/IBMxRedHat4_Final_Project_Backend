@@ -131,10 +131,9 @@ async def refresh_token(refresh_token: str, db: DB_Dependency):
     return new_tokens
 
 
-# 카카오 로그인 URL 생성 (프론트엔드에서 필요시 호출)
+# 카카오 로그인 URL 생성 -> kakao api에 맞게
 @router.get("/kakao/login-url")
 async def get_kakao_login_url():
-    """프론트엔드에서 카카오 로그인 URL을 받기 위한 엔드포인트"""
     kakao_auth_url = (
         f"https://kauth.kakao.com/oauth/authorize"
         f"?client_id={os.getenv('KAKAO_CLIENT_ID')}"
@@ -144,8 +143,9 @@ async def get_kakao_login_url():
     return {"auth_url": kakao_auth_url}
 
 
-# 카카오 인가 코드로 로그인/회원가입 처리
+# 카카오 인가 코드로 로그인/회원가입 처리 -> kakao에서 OK 판정해줬으니 안심하고 회원가입 시켜주기
 @router.post("/kakao/callback", response_model=KakaoLoginResponse)
 async def kakao_login(request: KakaoCallbackRequest, db: DB_Dependency):
     tokens = await kakao_login_or_signup(db, request.code)
+
     return tokens
