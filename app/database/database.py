@@ -5,8 +5,8 @@ load_dotenv()
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy import create_engine
-from ..core.settings import settings
-from ..database.base import Base
+from app.core.settings import settings
+from app.database.base import Base
 
 # 엔진 설정
 async_engine = create_async_engine(
@@ -38,6 +38,11 @@ def create_tables():
         # 모든 모델 import (Base에 등록하기 위해서임) # 여기 등록 안하면 테이블 생성이 안됨
         from .models import user
         from .models import communication
+        from .models import image
+        from .models import category
+        from .models import presentation
+        from .models import audio
+        from .models import interview
 
         Base.metadata.create_all(bind=sync_engine)
         print("데이터베이스 테이블 생성")

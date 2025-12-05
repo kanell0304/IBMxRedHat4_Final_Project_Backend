@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import voice_analysis
+
+from app.database.database import create_tables
+from app.routers import voice_analysis, user
 from contextlib import asynccontextmanager
 from app.core.model_loader import ensure_models_ready
-
+from app.service.voice_analyzer import get_analyzer
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,11 +22,16 @@ async def lifespan(app: FastAPI):
 
     # 2. 음성 분석기 로드
     try:
-        from app.service.voice_analyzer import get_analyzer
         analyzer = get_analyzer()
         print("음성 분석 모델 로드 완료")
     except Exception as e:
         print(f"모델 로드 실패: {e}")
+
+    # 데이터베이스 테이블 생성
+    try:
+        create_tables()
+    except Exception as e:
+        print(f"데이터베이스 테이블 생성 실패: {e}")
 
     print("")
     yield
@@ -42,6 +49,7 @@ app.add_middleware(
 )
 
 app.include_router(voice_analysis.router)
+app.include_router(user.router)
 
 @app.get("/")
 async def root():

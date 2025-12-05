@@ -16,8 +16,10 @@ class Presentation(Base):
     target_duration: Mapped[Optional[int]] = mapped_column(Integer, nullable=True) # 목표 발표 시간(초)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False) # 생성일
     status: Mapped[int] = mapped_column(Integer, default=0, nullable=False) # 진행 상태 표시(미완료: 0, 완료: 1)
+    m_category_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('main_category.m_category_id', ondelete='SET NULL'))
 
     voice_files: Mapped[List["PrVoiceFile"]] = relationship("PrVoiceFile", back_populates="presentation", cascade="all, delete-orphan")
+    main_category: Mapped[Optional["MainCategory"]] = relationship("MainCategory", back_populates="presentations")
     results: Mapped[List["PrResult"]] = relationship("PrResult", back_populates="presentation", cascade="all, delete-orphan")
     feedbacks: Mapped[List["PrFeedback"]] = relationship("PrFeedback", back_populates="presentation", cascade="all, delete-orphan")
 

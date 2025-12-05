@@ -1,48 +1,64 @@
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Integer, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Integer, func, Text, JSON
 from app.database.database import Base
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional, List
 
-
+#인터뷰 기본정보
 class Interview(Base):
-    __tablename__ = "interviews"
-    interview_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
-    category_id: Mapped[int] = mapped_column(ForeignKey("job_categories.job_category_id"), nullable=False)
-    total_duration: Mapped[Optional[int]] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
-    status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    answers: Mapped[List["InterviewAnswer"]] = relationship("InterviewAnswer", cascade="all, delete-orphan")
-    results: Mapped[List["InterviewResult"]] = relationship("InterviewResult", cascade="all, delete-orphan")
+  __tablename__ = "interviews"
+
+  i_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+  user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
+  category_id: Mapped[int] = mapped_column(ForeignKey("job_categories.job_category_id"), nullable=False)  # 직무 카테고리
+  total_duration: Mapped[Optional[int]] = mapped_column(nullable=True)  # 총 소요 시간(초)
+  created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+  status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 진행 상태(예: 0-대기, 1-진행, 2-완료) # 구현 할지 안할지는 미정
+  total_questions: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=5)  # 진행할 질문 수(기본 5)
+  current_question: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)  # 현재 진행 중인 질문 순번
+
+  answers: Mapped[List["InterviewAnswer"]] = relationship("InterviewAnswer", back_populates="interview", cascade="all, delete-orphan")
+  results: Mapped[List["InterviewResult"]] = relationship("InterviewResult", cascade="all, delete-orphan")  # llm 결과
 
 
+# 인터뷰에서 사용할 질문 (공통/직무별)
 class InterviewQuestion(Base):
-    __tablename__ = "i_question"
-    i_question_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    common_question: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    job_question_id: Mapped[Optional[int]] = mapped_column(ForeignKey("job_questions.job_question_id"), nullable=True)
-    job_question_text: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+  __tablename__ = "i_question"
+
+  q_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+  common_question: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False) # 공통 질문
+  job_q_text: Mapped[Optional[str]] = mapped_column(String(500), nullable=True) # 질문 텍스트
+  job_q_id: Mapped[Optional[int]] = mapped_column(ForeignKey("job_questions.job_q_id"), nullable=True) # 직무별 질문
 
 
+#사용자가 제출한 인터뷰 답변
 class InterviewAnswer(Base):
-    __tablename__ = "i_answers"
-    i_answer_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    audio_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    results: Mapped[List["InterviewResult"]] = relationship("InterviewResult")
+  __tablename__ = "i_answers"
+
+  i_answer_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+  i_id: Mapped[int] = mapped_column(ForeignKey("interviews.i_id"), nullable=False, index=True)
+  q_id: Mapped[Optional[int]] = mapped_column(ForeignKey("i_question.q_id"), nullable=True)
+  q_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 질문 순서(1~5)
+  q_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 공통 직무관련 질문 타입
+  audio_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # 파일 경로/키
+  transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # STT 텍스트
+  labels_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # BERT 분류 결과 저장
+  created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+  results: Mapped[List["InterviewResult"]] = relationship("InterviewResult", cascade="all, delete-orphan")  # 세부 평가/결과
+  interview: Mapped["Interview"] = relationship("Interview", back_populates="answers")  # 인터뷰 역참조
 
 
+#각 답변/질문에 대한 평가/요약 결과
 class InterviewResult(Base):
-    __tablename__ = "i_result"
-    i_result_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
-    interview_id: Mapped[int] = mapped_column(ForeignKey("interviews.interview_id"), nullable=False)
-    script_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    i_question_id: Mapped[Optional[int]] = mapped_column(ForeignKey("i_question.i_question_id"), nullable=True)
-    i_answer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("i_answers.i_answer_id"), nullable=True)
-    formal: Mapped[Optional[int]] = mapped_column(nullable=True)
-    sentence_speed: Mapped[Optional[int]] = mapped_column(nullable=True)
-    clarity: Mapped[Optional[int]] = mapped_column(nullable=True)
-    sentiment: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    summary: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    advice: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+  __tablename__ = "i_result"
+
+  i_result_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+  user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
+  i_id: Mapped[int] = mapped_column(ForeignKey("interviews.i_id"), nullable=False)
+  script_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+  q_id: Mapped[Optional[int]] = mapped_column(ForeignKey("i_question.q_id"), nullable=True)
+  i_answer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("i_answers.i_answer_id"), nullable=True)
+  overall: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+  # formal: Mapped[Optional[int]] = mapped_column(nullable=True) # 미정
+  # sentence_speed: Mapped[Optional[int]] = mapped_column(nullable=True) # 미정
