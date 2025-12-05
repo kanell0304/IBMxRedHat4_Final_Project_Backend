@@ -24,7 +24,7 @@ class VoiceAnalyzer:
 
     def _load_models(self):
         try:
-            # 감정 분류 모델 로드
+            # 감정 분류 모델 로드1
             with open(self.model_dir / 'emotion_classifier.pkl', 'rb') as f:
                 self.emotion_model = pickle.load(f)
 

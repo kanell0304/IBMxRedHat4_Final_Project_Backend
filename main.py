@@ -11,7 +11,7 @@ from app.service.voice_analyzer import get_analyzer
 async def lifespan(app: FastAPI):
     print("\n서버 시작")
 
-    # 1. 모델 파일 확인 (로컬 우선, 없으면 S3)
+    # 1. 모델 파일 확인 (로컬 우선, 없으면 S3)1
     try:
         models_ready = ensure_models_ready()
 
