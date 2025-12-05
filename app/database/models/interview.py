@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Integer, func, Text, JSON
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Integer, func, Text, JSON, LargeBinary
 from app.database.database import Base
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -41,6 +41,8 @@ class InterviewAnswer(Base):
   q_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 질문 순서(1~5)
   q_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 공통 직무관련 질문 타입
   audio_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # 파일 경로/키
+  audio_format: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)  # 파일 확장자
+  audio_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary(length=16777215), nullable=True)  # 원본 바이너리
   transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # STT 텍스트
   labels_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # BERT 분류 결과 저장
   created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)

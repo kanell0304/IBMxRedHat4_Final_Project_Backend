@@ -32,6 +32,7 @@ desktop.ini
 *.db
 *.sqlite
 *.sqlite3
+chroma_db/
 
 __pycache__/
 *.pyc

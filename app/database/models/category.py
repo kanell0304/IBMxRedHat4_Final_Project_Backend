@@ -5,13 +5,13 @@ from typing import Optional, List
 
 
 class MainCategory(Base):
-    __tablename__ = "main_category"
+  __tablename__ = "main_category"
 
-    m_category_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    m_category_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    communications: Mapped[List["Communication"]] = relationship("Communication")
-    presentations: Mapped[List["Presentation"]] = relationship("Presentation")
-    job_categories: Mapped[List["JobCategory"]] = relationship("JobCategory")
+  m_category_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+  m_category_name: Mapped[str] = mapped_column(String(100), nullable=False)
+  job_categories: Mapped[List["JobCategory"]] = relationship("JobCategory")
+  # communications: Mapped[List["Communication"]] = relationship("Communication")
+  # presentations: Mapped[List["Presentation"]] = relationship("Presentation")
 
 
 class JobCategory(Base):

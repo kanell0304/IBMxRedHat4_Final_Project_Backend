@@ -29,9 +29,11 @@ class AnalyzeRequest(BaseModel):
 # process
 class ProcessAnswerResponse(BaseModel):
     transcript: str
-    labels: Dict[str, Any]
+    sentences: List[Dict[str, Any]]
+    label_counts: Dict[str, int]
 
 
 class AnswerUploadResponse(BaseModel):
     answer_id: int
-    audio_path: str
+    audio_format: str
+    size: int

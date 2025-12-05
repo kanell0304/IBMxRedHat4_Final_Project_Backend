@@ -1,6 +1,9 @@
 import os
+import re
 from typing import Dict, Any, List, Optional
 from app.core.settings import settings
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from app.database.models.interview import InterviewAnswer
 from app.infra.chroma_db import collection, get_embedding
 from collections import defaultdict
@@ -25,30 +28,70 @@ def _flatten_labels(labels: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def save_chroma(
-    answer_id: int, 
-    session_id: int, 
-    question_no: int, 
+    answer_id: int,
+    session_id: int,
+    question_no: int,
     user_id: int,
-    text: str, 
-    labels: Dict[str, Any]):
-  
-  embedding = get_embedding(text)  # 텍스트를 숫자로 임베딩
+    text: str,
+    sentences: List[Dict[str, Any]],
+    label_counts: Dict[str, int],
+):
+  """
+  전체 transcript 1개 + 문장 단위 문서들을 Chroma에 저장한다.
+  - 전체 문서: type=user_answer_full, label_counts 포함
+  - 문장 문서: type=user_answer_sentence, 문장별 라벨을 메타데이터로 저장
+  """
 
-  metadata = {
-    "type": "user_answer",
-    "answer_id": answer_id, # DB 답변 ID (추적용)
-    "session_id": session_id, # 같은 인터뷰 세션 묶음 식별
+  # user_id 추가 전 저장된 기존 문서가 있으면 제거하고 덮어쓴다 (answer_id 기준)
+  try:
+    collection.delete(where={"answer_id": answer_id})
+  except Exception:
+    pass
+
+  # 1) 전체 transcript 문서
+  full_embedding = get_embedding(text)
+  full_metadata = {
+    "type": "user_answer_full",
+    "answer_id": answer_id,
+    "session_id": session_id,
     "question_no": question_no,
     "user_id": user_id,
-    **_flatten_labels(labels), # BERT 결과를 평탄화해 저장
+    "sentence_total": len(sentences),
+    **{f"{k}_count": int(v) for k, v in label_counts.items()},
   }
 
-  # 벡터, 원문, 메타데이터를 한 묶음으로 collection에 저장
+  ids: List[str] = [f"user_{user_id}_answer_{answer_id}_full"]
+  docs: List[str] = [text]
+  metas: List[Dict[str, Any]] = [full_metadata]
+  embeds: List[List[float]] = [full_embedding]
+
+  # 2) 문장 단위 문서
+  for idx, sent in enumerate(sentences):
+    sent_text = sent.get("text", "").strip()
+    if not sent_text:
+      continue
+    sent_labels = sent.get("labels", {})
+    sent_embedding = get_embedding(sent_text)
+    sent_metadata = {
+      "type": "user_answer_sentence",
+      "answer_id": answer_id,
+      "session_id": session_id,
+      "question_no": question_no,
+      "user_id": user_id,
+      "sentence_index": idx,
+      **{f"{k}_label": int(v) for k, v in sent_labels.items()},
+    }
+    ids.append(f"user_{user_id}_answer_{answer_id}_sent_{idx}")
+    docs.append(sent_text)
+    metas.append(sent_metadata)
+    embeds.append(sent_embedding)
+
+  # 저장
   collection.add(
-    ids=[f"user_{user_id}_answer_{answer_id}"], # 고유 ID로 재검색 시 바로 특정
-    documents=[text],# 검색 결과로 보여줄 실제 답변 텍스트
-    metadatas=[metadata],
-    embeddings=[embedding], # 유사도 검색의 핵심 데이터
+    ids=ids,
+    documents=docs,
+    metadatas=metas,
+    embeddings=embeds,
   )
 
 
@@ -71,21 +114,40 @@ def _i_predict_labels(text: str) -> Dict[str, Any]:
   return service.predict_labels(text)
 
 
+def _predict_labels_only(text: str) -> Dict[str, int]:
+  raw = _i_predict_labels(text)
+  return {k: int(v.get("label", 0)) for k, v in raw.items()}
+
+
+def _split_sentences(text: str) -> List[str]:
+  # 단순 문장 분리: 마침표/물음표/느낌표 기준
+  parts = re.split(r'(?<=[\.?!])\s+', text.strip())
+  return [p.strip() for p in parts if p.strip()]
+
+
 async def i_process_answer(answer_id: int, db):
-  answer: InterviewAnswer | None = await db.get(InterviewAnswer, answer_id)
+  stmt = (
+    select(InterviewAnswer)
+    .options(selectinload(InterviewAnswer.interview))
+    .where(InterviewAnswer.i_answer_id == answer_id)
+  )
+  result = await db.execute(stmt)
+  answer: InterviewAnswer | None = result.scalar_one_or_none()
   if not answer:
     raise ValueError("해당 answer_id를 찾을 수 없습니다.")
   transcript = answer.transcript  # 기존 STT 결과가 있으면 재사용
 
 
   if not transcript:
-    if not answer.audio_path:
-      raise ValueError("audio_path가 없어 STT를 수행할 수 없습니다.")
-
-    with open(answer.audio_path, "rb") as f:
-      audio_bytes = f.read()
-
-    original_format = os.path.splitext(answer.audio_path)[1].lstrip(".") or "wav"
+    if answer.audio_data:
+      audio_bytes = answer.audio_data
+      original_format = answer.audio_format or "wav"
+    elif answer.audio_path:
+      with open(answer.audio_path, "rb") as f:
+        audio_bytes = f.read()
+      original_format = os.path.splitext(answer.audio_path)[1].lstrip(".") or "wav"
+    else:
+      raise ValueError("audio 데이터가 없어 STT를 수행할 수 없습니다.")
 
     from app.service.audio_service import AudioService
     from app.service.stt_service import STTService
@@ -95,12 +157,29 @@ async def i_process_answer(answer_id: int, db):
     stt_result = await stt_service.transcribe_chirp(wav_data) # STT 호출
     transcript = _extract_transcript(stt_result) # 텍스트만 추출
 
-  # BERT 분류
-  labels = _i_predict_labels(transcript)
+  sentences = _split_sentences(transcript)
+
+  # 전체/문장별 라벨
+  overall_labels = _predict_labels_only(transcript)
+  sentence_labels = [
+    {"text": s, "labels": _predict_labels_only(s)}
+    for s in sentences
+  ]
+
+  # 문장별 라벨
+  label_counts = {k: 0 for k in overall_labels.keys()}
+  for sent in sentence_labels:
+    for k, v in sent["labels"].items():
+      if v:
+        label_counts[k] += 1
 
   # mysql에 올리기
   answer.transcript = transcript
-  answer.labels_json = labels
+  answer.labels_json = {
+    "overall_labels": overall_labels,
+    "sentences": sentence_labels,
+    "label_counts": label_counts,
+  }
   await db.commit()
   await db.refresh(answer)
 
@@ -109,13 +188,16 @@ async def i_process_answer(answer_id: int, db):
     answer_id=answer.i_answer_id,
     session_id=answer.i_id,
     question_no=answer.q_order or 0,
+    user_id=answer.interview.user_id,
     text=transcript,
-    labels=labels,
+    sentences=sentence_labels,
+    label_counts=label_counts,
   )
 
   return {
     "transcript": transcript,
-    "labels": labels,
+    "sentences": sentence_labels,
+    "label_counts": label_counts,
   }
 
 
@@ -268,5 +350,3 @@ def analyze_speech_style_evolution(
     "first_avg":round(first_score, 2),
     "recent_avg":round(last_score, 2)
   }
-
-
