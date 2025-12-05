@@ -1,13 +1,9 @@
 import os
-import re
 from typing import Dict, Any, List, Optional
-from app.core.settings import settings
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-from app.database.models.interview import InterviewAnswer
-from app.infra.chroma_db import collection, get_embedding
 from collections import defaultdict
-
+from app.core.settings import settings
+from app.database.models.interview import InterviewAnswer, Interview
+from app.infra.chroma_db import collection, get_embedding
 
 
 # 텍스트를 임베딩하고 ChromaDB에 저장
@@ -36,11 +32,6 @@ def save_chroma(
     sentences: List[Dict[str, Any]],
     label_counts: Dict[str, int],
 ):
-  """
-  전체 transcript 1개 + 문장 단위 문서들을 Chroma에 저장한다.
-  - 전체 문서: type=user_answer_full, label_counts 포함
-  - 문장 문서: type=user_answer_sentence, 문장별 라벨을 메타데이터로 저장
-  """
 
   # user_id 추가 전 저장된 기존 문서가 있으면 제거하고 덮어쓴다 (answer_id 기준)
   try:
@@ -120,21 +111,28 @@ def _predict_labels_only(text: str) -> Dict[str, int]:
 
 
 def _split_sentences(text: str) -> List[str]:
-  # 단순 문장 분리: 마침표/물음표/느낌표 기준
-  parts = re.split(r'(?<=[\.?!])\s+', text.strip())
-  return [p.strip() for p in parts if p.strip()]
+  sentences: List[str] = []
+  current = []
+  for char in text.strip():
+    current.append(char)
+    if char in ".?!":
+      sentence = "".join(current).strip()
+      if sentence:
+        sentences.append(sentence)
+      current = []
+  tail = "".join(current).strip()
+  if tail:
+    sentences.append(tail)
+  return sentences
 
 
 async def i_process_answer(answer_id: int, db):
-  stmt = (
-    select(InterviewAnswer)
-    .options(selectinload(InterviewAnswer.interview))
-    .where(InterviewAnswer.i_answer_id == answer_id)
-  )
-  result = await db.execute(stmt)
-  answer: InterviewAnswer | None = result.scalar_one_or_none()
+  answer: InterviewAnswer | None = await db.get(InterviewAnswer, answer_id)
   if not answer:
     raise ValueError("해당 answer_id를 찾을 수 없습니다.")
+  interview: Interview | None = await db.get(Interview, answer.i_id)
+  if not interview:
+    raise ValueError("해당 인터뷰 정보를 찾을 수 없습니다.")
   transcript = answer.transcript  # 기존 STT 결과가 있으면 재사용
 
 
@@ -188,7 +186,7 @@ async def i_process_answer(answer_id: int, db):
     answer_id=answer.i_answer_id,
     session_id=answer.i_id,
     question_no=answer.q_order or 0,
-    user_id=answer.interview.user_id,
+    user_id=interview.user_id,
     text=transcript,
     sentences=sentence_labels,
     label_counts=label_counts,

@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import voice_analysis
-from app.routers import bert
 from app.routers import interview
 from contextlib import asynccontextmanager
 from app.database.database import create_tables
@@ -69,6 +68,4 @@ async def root():
 async def health():
     return {"status": "ok"}
 
-app.include_router(bert.router)
 app.include_router(interview.router)
-
