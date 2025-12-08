@@ -7,7 +7,7 @@ from datetime import datetime
 class User(Base):
     __tablename__="users"
 
-    user_id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(primary_key=True, index=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False) # 이메일(아이디)
     username: Mapped[str] = mapped_column(String(40), nullable=False) # 이름
     nickname: Mapped[str] = mapped_column(String(40), nullable=False) # 닉네임
@@ -19,6 +19,8 @@ class User(Base):
     is_social: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # 0: 일반 회원가입, 1: 소셜 회원가입
     social_provider: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 어떤 소셜인지 ex) kakao, google (kakao 만 할거임)
     social_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # 소셜 플랫폼의 고유 id - user_id와 별개로 그쪽에서 지정하는 고유 id
+    reset_code: Mapped[Optional[str]] = mapped_column(String(6), nullable=True)  # 비밀번호 재설성 인증 코드 6자리
+    reset_code_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # 인증 코드 유효 시간
 
     #1:M관계
     # presentations: Mapped[List["Presentation"]] = relationship("Presentation", back_populates="user", cascade="all, delete-orphan")

@@ -8,4 +8,4 @@ class Image(Base):
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     
-    users: Mapped[list["User"]] = relationship("User", back_populates="profile_image")
+    # users: Mapped[list["User"]] = relationship("User", back_populates="profile_image")

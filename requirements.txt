@@ -9,13 +9,15 @@ pydub==0.25.1
 
 # PyTorch (CPU 버전)
 torch==2.1.0
+torchvision==0.16.0
 torchaudio==2.1.0
 
+# Transformers 및 PEFT
 transformers==4.30.0
 peft==0.5.0
 
 # FastAPI 및 웹 서버
-fastapi==0.110.0        # <--- 업데이트
+fastapi==0.110.0
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 httpx>=0.24.0

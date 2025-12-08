@@ -4,6 +4,12 @@ from app.core.settings import settings
 from fastapi import HTTPException, status
 from typing import Optional
 from jose.exceptions import ExpiredSignatureError
+from passlib.context import CryptContext
+
+pwd_context=CryptContext(schemes=["bcrypt"])
+
+def get_pwd_hash(password:str):
+    return pwd_context.hash(password)
 
 # 액세스 토큰 생성
 def create_access_token(data:dict, expires_time: Optional[int] = 1500):
