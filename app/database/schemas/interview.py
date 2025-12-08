@@ -1,5 +1,7 @@
+from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from app.database.models.interview import InterviewType
 
 
 # 문제 표현과 수정 표현을 한 쌍으로 묶음
@@ -29,9 +31,71 @@ class AnalyzeRequest(BaseModel):
 # process
 class ProcessAnswerResponse(BaseModel):
     transcript: str
-    labels: Dict[str, Any]
+    sentences: List[Dict[str, Any]]
+    label_counts: Dict[str, int]
 
 
 class AnswerUploadResponse(BaseModel):
     answer_id: int
-    audio_path: str
+    audio_format: str
+    size: int
+
+
+# 인터뷰 생성
+class InterviewCreate(BaseModel):
+    user_id: int
+    interview_type: InterviewType
+    category_id: Optional[int] = None
+    total_questions: int = Field(default=5, gt=0)
+
+
+# 인터뷰 목록
+class InterviewBasic(BaseModel):
+    i_id: int
+    user_id: int
+    interview_type: InterviewType
+    category_id: Optional[int] = None
+    status: Optional[int] = None
+    total_questions: int
+    current_question: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+
+# 답변 생성
+class AnswerCreate(BaseModel):
+    q_id: Optional[int] = None
+    q_order: Optional[int] = None
+    duration_sec: Optional[int] = Field(default=None, ge=0)
+    transcript: Optional[str] = None
+    labels_json: Optional[Dict[str, Any]] = None
+
+
+# 답변 응답
+class Answer(BaseModel):
+    i_answer_id: int
+    i_id: int
+    q_id: Optional[int] = None
+    q_order: Optional[int] = None
+    duration_sec: Optional[int] = None
+    transcript: Optional[str] = None
+    labels_json: Optional[Dict[str, Any]] = None
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+
+# 상세 인터뷰
+class InterviewDetail(InterviewBasic):
+    answers: List[Answer] = Field(default_factory=list)
+
+# 결과
+class InterviewResult(BaseModel):
+    i_result_id: int
+    i_id: int
+    i_answer_id: Optional[int] = None
+    q_id: Optional[int] = None
+    overall: Optional[str] = None
+    class Config:
+        from_attributes = True

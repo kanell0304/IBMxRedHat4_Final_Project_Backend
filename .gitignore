@@ -32,6 +32,7 @@ desktop.ini
 *.db
 *.sqlite
 *.sqlite3
+chroma_db/
 
 __pycache__/
 *.pyc
@@ -45,9 +46,6 @@ dist/
 build/
 *.egg-info/
 
-
-I_P_BERT/
-C_BERT/
 
 app/ml_models/*.pkl
 !app/ml_models/__init__.py

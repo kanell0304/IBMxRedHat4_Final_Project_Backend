@@ -1,14 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import voice_analysis
-from app.routers import bert
 from app.routers import interview
 from contextlib import asynccontextmanager
+from app.database.database import create_tables
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("\n서버 시작")
+
+    try:
+        create_tables()
+    except Exception as e:
+        print(f"테이블 생성 실패: {e}")
 
     # 1. 모델 파일 확인 (로컬 우선, 없으면 S3)
     try:
@@ -62,6 +67,4 @@ async def root():
 async def health():
     return {"status": "ok"}
 
-app.include_router(bert.router)
 app.include_router(interview.router)
-
