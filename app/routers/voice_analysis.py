@@ -4,10 +4,21 @@ from typing import Optional
 import tempfile
 import os
 
-# ffmpeg 경로 설정 -> 현재 c:/ffmpeg 폴더 안에 있음1
-# os.environ["PATH"] = r"C:\ffmpeg\bin" + os.pathsep + os.environ.get("PATH", "")
+# ffmpeg 경로 설정 -> 현재 c:/ffmpeg 폴더 안에 있음
+os.environ["PATH"] = r"C:\ffmpeg\bin" + os.pathsep + os.environ.get("PATH", "")
 
 from pydub import AudioSegment
+
+# pydub에 ffmpeg 경로 명시적으로 지정
+AudioSegment.converter = r"C:\ffmpeg\bin\ffmpeg.exe"
+AudioSegment.ffprobe = r"C:\ffmpeg\bin\ffprobe.exe"
+
+# ffmpeg 존재 확인
+if not os.path.exists(AudioSegment.converter):
+    print(f"\n[WARNING] ffmpeg를 찾을 수 없습니다: {AudioSegment.converter}")
+    print("MP3, M4A 등의 파일 변환이 실패할 수 있습니다.\n")
+else:
+    print(f"[OK] ffmpeg 발견: {AudioSegment.converter}")
 
 from ..service.voice_analyzer import get_analyzer
 
@@ -26,22 +37,33 @@ async def analyze_voice(audio_file: UploadFile = File(..., description="음성 �
     temp_wav_file = None
 
     try:
+        print(f"1. 업로드된 파일: {audio_file.filename}")
+        print(f"2. 파일 확장자: {file_extension}")
+        
         with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp:
             contents = await audio_file.read()
             tmp.write(contents)
             temp_input_file = tmp.name
+        
+        print(f"3. 임시 파일 저장: {temp_input_file}")
+        print(f"4. 파일 존재 확인: {os.path.exists(temp_input_file)}")
 
         if file_extension != '.wav':
+            print("5. WAV 변환 시작...")
             temp_wav_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav').name
 
             audio = AudioSegment.from_file(temp_input_file)
             audio = audio.set_channels(1)
             audio = audio.set_frame_rate(16000)
             audio.export(temp_wav_file, format="wav")
-
+            
+            print(f"6. WAV 변환 완료: {temp_wav_file}")
             analysis_file = temp_wav_file
         else:
+            print("5. WAV 파일이므로 변환 스킵")
             analysis_file = temp_input_file
+        
+        print(f"7. 분석 파일: {analysis_file}")
 
         analyzer = get_analyzer()
         result = analyzer.analyze(audio_path=analysis_file, estimated_syllables=estimated_syllables)
@@ -54,6 +76,11 @@ async def analyze_voice(audio_file: UploadFile = File(..., description="음성 �
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"\n=== 오류 발생 ===")
+        print(error_trace)
+        print(f"=================\n")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
     finally:
