@@ -31,6 +31,7 @@ def save_chroma(
     text: str,
     sentences: List[Dict[str, Any]],
     label_counts: Dict[str, int],
+    overall_raw_labels: Dict[str, Any],
 ):
 
   # user_id 추가 전 저장된 기존 문서가 있으면 제거하고 덮어쓴다 (answer_id 기준)
@@ -41,7 +42,10 @@ def save_chroma(
 
   # 1) 전체 transcript 문서
   full_embedding = get_embedding(text)
-  full_metadata = {
+  flat_overall = _flatten_labels(overall_raw_labels)
+
+
+  full_metadata: Dict[str, Any] = {
     "type": "user_answer_full",
     "answer_id": answer_id,
     "session_id": session_id,
@@ -49,6 +53,7 @@ def save_chroma(
     "user_id": user_id,
     "sentence_total": len(sentences),
     **{f"{k}_count": int(v) for k, v in label_counts.items()},
+    **flat_overall
   }
 
   ids: List[str] = [f"user_{user_id}_answer_{answer_id}_full"]
@@ -63,7 +68,7 @@ def save_chroma(
       continue
     sent_labels = sent.get("labels", {})
     sent_embedding = get_embedding(sent_text)
-    sent_metadata = {
+    sent_metadata: Dict[str, Any] = {
       "type": "user_answer_sentence",
       "answer_id": answer_id,
       "session_id": session_id,
@@ -101,18 +106,19 @@ def _extract_transcript(stt_result: Dict[str, Any]) -> str:
 
 def _i_predict_labels(text: str) -> Dict[str, Any]:
   from app.service.i_bert_service import get_inference_service
+
   service = get_inference_service()
   return service.predict_labels(text)
 
 
-def _predict_labels_only(text: str) -> Dict[str, int]:
-  raw = _i_predict_labels(text)
+def _labels_only(raw: Dict[str, Any]) -> Dict[str, int]:
   return {k: int(v.get("label", 0)) for k, v in raw.items()}
 
 
 def _split_sentences(text: str) -> List[str]:
   sentences: List[str] = []
-  current = []
+  current: List[str] = []
+
   for char in text.strip():
     current.append(char)
     if char in ".?!":
@@ -136,11 +142,12 @@ async def i_process_answer(answer_id: int, db):
   transcript = answer.transcript  # 기존 STT 결과가 있으면 재사용
 
 
+  # transcript 없으면 STT 수행
   if not transcript:
-    if answer.audio_data:
+    if getattr(answer, "audio_data", None):
       audio_bytes = answer.audio_data
       original_format = answer.audio_format or "wav"
-    elif answer.audio_path:
+    elif getattr(answer, "audio_path", None):
       with open(answer.audio_path, "rb") as f:
         audio_bytes = f.read()
       original_format = os.path.splitext(answer.audio_path)[1].lstrip(".") or "wav"
@@ -156,17 +163,25 @@ async def i_process_answer(answer_id: int, db):
     transcript = _extract_transcript(stt_result) # 텍스트만 추출
 
   sentences = _split_sentences(transcript)
+  if not sentences:
+    sentences = [transcript]
 
   # 전체/문장별 라벨
-  overall_labels = _predict_labels_only(transcript)
-  sentence_labels = [
-    {"text": s, "labels": _predict_labels_only(s)}
-    for s in sentences
-  ]
+  overall_raw = _i_predict_labels(transcript)
+  overall_labels = _labels_only(overall_raw)
+
+  sentence_entries: List[Dict[str, Any]] = []
+  for s in sentences:
+    raw = _i_predict_labels(s)
+    labels_only=_labels_only(raw)
+    sentence_entries.append({
+      "text": s,
+      "labels": labels_only,
+    })
 
   # 문장별 라벨
   label_counts = {k: 0 for k in overall_labels.keys()}
-  for sent in sentence_labels:
+  for sent in sentence_entries:
     for k, v in sent["labels"].items():
       if v:
         label_counts[k] += 1
@@ -175,7 +190,10 @@ async def i_process_answer(answer_id: int, db):
   answer.transcript = transcript
   answer.labels_json = {
     "overall_labels": overall_labels,
-    "sentences": sentence_labels,
+    "sentences": [
+      {"text": s["text"], "labels": s["labels"]}
+      for s in sentence_entries
+    ],
     "label_counts": label_counts,
   }
   await db.commit()
@@ -188,13 +206,17 @@ async def i_process_answer(answer_id: int, db):
     question_no=answer.q_order or 0,
     user_id=interview.user_id,
     text=transcript,
-    sentences=sentence_labels,
+    sentences=sentence_entries,
     label_counts=label_counts,
+    overall_raw_labels=overall_raw,
   )
 
   return {
     "transcript": transcript,
-    "sentences": sentence_labels,
+    "sentences": [
+      {"text": s["text"], "labels": s["labels"]}
+      for s in sentence_entries
+    ],
     "label_counts": label_counts,
   }
 
@@ -205,7 +227,12 @@ async def i_process_answer(answer_id: int, db):
 def analyze_weakness_patterns(user_id:int)->Dict[str, Any]:
 
   all_answers=collection.get(
-    where={"user_id":user_id}
+    where={
+      "$and":[
+        {"user_id":user_id},
+        {"type":"user_answer_sentence"}
+      ]
+    }
   )
 
   if not all_answers["ids"]:
@@ -220,7 +247,7 @@ def analyze_weakness_patterns(user_id:int)->Dict[str, Any]:
   label_issues=defaultdict(list)
   question_issues_count=defaultdict(int)
 
-  for metadata in all_answers["metadata"]:
+  for metadata in all_answers["metadatas"]:
     q_no=metadata.get("question_no", 0)
 
     # 라벨 1인 항목 찾기
@@ -249,7 +276,7 @@ def analyze_weakness_patterns(user_id:int)->Dict[str, Any]:
   if weak_labels:
     top_label=weak_labels[0][0].replace("_"," ")
     top_count=len(set(weak_labels[0][1]))
-    pattern_summary=f"{top_label}이(가) {top_count}개 질문에서 반복적으로 나타납니다.)"
+    pattern_summary=f"{top_label}이(가) {top_count}개 질문에서 반복적으로 나타납니다."
   else:
     pattern_summary="특별한 약점 패턴이 발견되지 않았습니다."
   
@@ -268,12 +295,20 @@ def analyze_speech_style_evolution(
     user_id:int, question_no:Optional[int]=None
 )->Dict[str, Any]:
   
-  where_condition={"user_id":user_id}
-  if question_no is not None:
+  if question_no is None:
+    where_condition:Dict[str, Any]={
+      "$and":[
+        {"user_id":user_id},
+        {"type":"user_answer_full"},
+      ]
+    }
+  
+  else:
     where_condition={
       "$and":[
         {"user_id":user_id},
-        {"question_no":question_no}
+        {"type":"user_answer_full"},
+        {"question_no":question_no},
       ]
     }
   
@@ -286,9 +321,9 @@ def analyze_speech_style_evolution(
       "evolution_summary":"분석할 데이터가 부족합니다."
     }
   
-  
+  # 세션별 집계
   session_data=defaultdict(lambda:{
-    "score":[],
+    "scores":[],
     "issue_count":0,
     "answer_ids":[]
   })
@@ -296,7 +331,7 @@ def analyze_speech_style_evolution(
   for metadata in results["metadatas"]:
     session_id=metadata.get("session_id",0)
 
-    scores=[]
+    scores:List[float]=[]
 
     for key, value in metadata.items():
       if key.endswith("_score"):
@@ -308,8 +343,10 @@ def analyze_speech_style_evolution(
       session_data[session_id]["scores"].extend(scores)
       session_data[session_id]["answer_ids"].append(metadata.get("answer_id"))
 
-  timeline=[]
-  for session_id, data in sorted(session_data.items()):
+  # 타임라인 정리 : session_id 오름차순
+  timeline:List[Dict[str, Any]]=[]
+
+  for session_id, data in sorted(session_data.items(), key=lambda x:x[0]):
     avg_score=sum(data["scores"])/len(data["scores"]) if data["scores"] else 0
     timeline.append({
       "session_id":session_id,
@@ -321,30 +358,42 @@ def analyze_speech_style_evolution(
   if len(timeline)<2:
     return {
       "timeline":timeline,
-      "improvement_rate":0.0,
-      "evolution_summary":"비교할 데이터가 부족합니다. 더 연습해보세요!"
+      "improvement":{
+        "direction":"same",
+        "percent":0.0,
+        "from":timeline[0]["avg_score"] if timeline else 0,
+        "to":timeline[-1]["avg_score"] if timeline else 0,
+        "summary":"비교할 데이터가 부족합니다. 더 연습해보세요!"
+      }
     }
   
   first_score=timeline[0]["avg_score"]
   last_score=timeline[-1]["avg_score"]
-  improvement_rate=((last_score-first_score)/first_score*100) if first_score>0 else 0.0
-
-  best_session=min(timeline, key=lambda x:x["avg_score"])
-  worst_session=max(timeline, key=lambda x:x["avg_score"])
-
-  if improvement_rate<-10:
-    evolution_summary=f"평균 점수가 {first_score:.2f} → {last_score:.2f}로 {abs(improvement_rate):.0f}% 개선!"
-  elif improvement_rate>10:
-    evolution_summary=f"최근 점수가 높아졌습니다. 초심으로 돌아가볼까요?"
+ 
+  # 퍼센트 변화율 계산(항상 양수값으로)
+  if first_score>0:
+    percent=abs(last_score-first_score)/first_score*100
   else:
-    evolution_summary=f"일관된 실력을 유지중입니다."
-
+    percent=0.0
+  
+  # 방향 판단
+  if last_score<first_score:
+    direction="improved"
+    summary=f"{percent:.1f}% 개선되었습니다."
+  elif last_score>first_score:
+    direction="worsened"
+    summary=f"{percent:.1f}% 악화되었습니다."
+  else:
+    direction="same"
+    summary="큰 변화 없이 일정한 실력을 유지하고 있습니다."
+  
   return {
     "timeline":timeline,
-    "improvement_rate":round(improvement_rate, 2),
-    "best_session":best_session["session_id"],
-    "worst_session":worst_session["session_id"],
-    "evolution_summary":evolution_summary,
-    "first_avg":round(first_score, 2),
-    "recent_avg":round(last_score, 2)
+    "improvement":{
+      "direction":direction,
+      "percent":round(percent, 2),
+      "from":round(first_score, 2),
+      "to":round(last_score, 2),
+      "summary":summary,
+    }
   }
