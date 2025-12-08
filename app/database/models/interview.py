@@ -20,7 +20,6 @@ class Interview(Base):
   i_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
   user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
   category_id: Mapped[int] = mapped_column(ForeignKey("job_categories.job_category_id"), nullable=True)  # 직무 카테고리
-  total_duration: Mapped[Optional[int]] = mapped_column(nullable=True)  # 총 소요 시간(초)
   created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
   status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 진행 상태(예: 0-대기, 1-진행, 2-완료) # 구현 할지 안할지는 미정
   total_questions: Mapped[int] = mapped_column(Integer, nullable=False, default=5)  # 진행할 질문 수(기본 5)
@@ -59,6 +58,7 @@ class InterviewAnswer(Base):
   i_id: Mapped[int] = mapped_column(ForeignKey("interviews.i_id"), nullable=False, index=True)
   q_id: Mapped[Optional[int]] = mapped_column(ForeignKey("i_questions.q_id"), nullable=True)
   q_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 질문 순서(1~5)
+  duration_sec: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 질문당 소요시간
   # q_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 공통 직무관련 질문 타입
   audio_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # 파일 경로/키
   audio_format: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)  # 파일 확장자
