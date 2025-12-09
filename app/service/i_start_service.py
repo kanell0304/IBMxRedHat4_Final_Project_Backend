@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.database.crud.category import get_jobcategory
 from app.database.models.category import JobCategory
 from app.database.models.interview import Interview, InterviewAnswer, InterviewQuestion, InterviewType, QuestionType, DifficultyLevel
-from app.database.schemas.interview import InterviewStartRequest, InterviewStartResponse, InterviewStartQuestion
+from app.database.schemas.interview import I_StartReq, I_StartRes, I_StartQ
 
 
 QUESTION_TYPE_ALIAS = {
@@ -114,8 +114,8 @@ async def load_q(
 
 
 async def start_interview_session(
-    db, payload: InterviewStartRequest
-) -> InterviewStartResponse:
+    db, payload: I_StartReq
+) -> I_StartRes:
     q_type = norm_q_type(payload.question_type)
     total_questions = payload.total_questions or 5
 
@@ -152,16 +152,16 @@ async def start_interview_session(
         db.add(interview)
         await db.flush()
 
-        questions_out: List[InterviewStartQuestion] = []
+        questions_out: List[I_StartQ] = []
         for order, question in enumerate(random.sample(questions, len(questions)), start=1):
             answer = InterviewAnswer(i_id=interview.i_id, q_id=question.q_id, q_order=order)
             db.add(answer)
             questions_out.append(
-                InterviewStartQuestion(
+                I_StartQ(
                     q_id=question.q_id,
                     q_order=order,
                     question_text=question.question_text,
                 )
             )
 
-    return InterviewStartResponse(i_id=interview.i_id, questions=questions_out)
+    return I_StartRes(i_id=interview.i_id, questions=questions_out)
