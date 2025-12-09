@@ -4,7 +4,7 @@ from collections import defaultdict
 from app.core.settings import settings
 from app.database.models.interview import InterviewAnswer, Interview
 from app.infra.chroma_db import collection, get_embedding
-
+from app.service.stt_metrics import compute_stt_metrics
 
 # 텍스트를 임베딩하고 ChromaDB에 저장
 # Chroma 메타데이터는 str/int/float/bool만 허용
@@ -160,7 +160,9 @@ async def i_process_answer(answer_id: int, db):
     wav_data, _ = AudioService.convert_to_wav(audio_bytes, original_format)  # 포맷 통일
     stt_service = STTService(project_id=settings.google_cloud_project_id) # Google STT 클라이언트 준비
     stt_result = await stt_service.transcribe_chirp(wav_data) # STT 호출
+
     transcript = _extract_transcript(stt_result) # 텍스트만 추출
+    stt_metrics=compute_stt_metrics(stt_result)
 
   sentences = _split_sentences(transcript)
   if not sentences:
@@ -218,6 +220,7 @@ async def i_process_answer(answer_id: int, db):
       for s in sentence_entries
     ],
     "label_counts": label_counts,
+    "stt_metrics": stt_metrics,
   }
 
 

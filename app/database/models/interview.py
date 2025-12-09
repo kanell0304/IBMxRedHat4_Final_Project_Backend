@@ -66,6 +66,7 @@ class InterviewAnswer(Base):
   transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # STT 텍스트
   labels_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # BERT 분류 결과 저장
   created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+  stt_metrics_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
   results: Mapped[List["InterviewResult"]] = relationship("InterviewResult", cascade="all, delete-orphan")  # 세부 평가/결과
   interview: Mapped["Interview"] = relationship("Interview", back_populates="answers")  # 인터뷰 역참조
