@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import voice_analysis, user, interview, jobs, image, communication
+from app.routers import voice_analysis, user, interview, jobs, image, presentation
+# from app.routers import communication
 from contextlib import asynccontextmanager
 from app.database.database import create_tables
 
@@ -47,9 +48,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-app.include_router(voice_analysis.router)
+# app.include_router(communication.router)
+app.include_router(image.router)
+app.include_router(interview.router)
+app.include_router(jobs.router)
+app.include_router(presentation.router)
 app.include_router(user.router)
+app.include_router(voice_analysis.router) # 테스트 용으로 일단 연결해둠
 
 @app.get("/")
 async def root():
@@ -68,9 +73,3 @@ async def root():
 async def health():
     return {"status": "ok"}
 
-app.include_router(communication.router)
-app.include_router(image.router)
-app.include_router(interview.router)
-app.include_router(jobs.router)
-app.include_router(user.router)
-app.include_router(voice_analysis.router)
