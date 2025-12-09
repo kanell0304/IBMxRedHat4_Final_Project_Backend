@@ -1,6 +1,6 @@
 from app.service.i_bert_service import get_inference_service
 from app.service.llm.openai_service import OpenAIService
-from app.database.schemas.interview import InterviewReport
+from app.database.schemas.interview import I_Report
 
 class AnalysisService:
 
@@ -20,7 +20,7 @@ class AnalysisService:
         )
 
         # pydantic 검증
-        report=InterviewReport(**report_dict)
+        report=I_Report(**report_dict)
         return report
 
 

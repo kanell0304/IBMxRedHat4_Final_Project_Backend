@@ -18,13 +18,13 @@ class IndexAnalysis(BaseModel):
     revised_examples:List[RevisedExample]=Field(default_factory=list) # 문제 문장과 개선 문장을 매핑하여 리스트화
 
 # 최종 리포트
-class InterviewReport(BaseModel):
+class I_Report(BaseModel):
     non_standard:IndexAnalysis
     filler_words:IndexAnalysis
     discourse_clarity:IndexAnalysis
     overall_comment:str=Field(..., description="전반적인 총평")
 
-class AnalyzeRequest(BaseModel):
+class AnalyzeReq(BaseModel):
     transcript:str=Field(..., description="STT 변환 면접 답변 텍스트")
 
 
@@ -41,7 +41,7 @@ class AnswerUploadResponse(BaseModel):
     size: int
 
 
-class InterviewStartRequest(BaseModel):
+class I_StartReq(BaseModel):
     user_id: int
     question_type: str = Field(..., description="common | job | mixed | (공통질문만/직무관련/섞어서)")
     job_group: Optional[str] = Field(default=None, description="프론트 선택값 매핑용(필수 아님)")
@@ -50,7 +50,7 @@ class InterviewStartRequest(BaseModel):
     total_questions: int = Field(default=5, gt=0, description="랜덤으로 선택할 질문 수")
 
 
-class InterviewStartQuestion(BaseModel):
+class I_StartQ(BaseModel):
     q_id: int
     q_order: int
     question_text: str
@@ -58,13 +58,13 @@ class InterviewStartQuestion(BaseModel):
         from_attributes = True
 
 
-class InterviewStartResponse(BaseModel):
+class I_StartRes(BaseModel):
     i_id: int
-    questions: List[InterviewStartQuestion]
+    questions: List[I_StartQ]
 
 
 # 인터뷰 생성
-class InterviewCreate(BaseModel):
+class I_Create(BaseModel):
     user_id: int
     interview_type: InterviewType
     category_id: Optional[int] = None
@@ -72,7 +72,7 @@ class InterviewCreate(BaseModel):
 
 
 # 인터뷰 목록
-class InterviewBasic(BaseModel):
+class I_Basic(BaseModel):
     i_id: int
     user_id: int
     interview_type: InterviewType
@@ -109,11 +109,11 @@ class Answer(BaseModel):
 
 
 # 상세 인터뷰
-class InterviewDetail(InterviewBasic):
+class I_Detail(I_Basic):
     answers: List[Answer] = Field(default_factory=list)
 
 # 결과
-class InterviewResult(BaseModel):
+class I_Result(BaseModel):
     i_result_id: int
     i_id: int
     i_answer_id: Optional[int] = None

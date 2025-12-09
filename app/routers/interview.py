@@ -5,7 +5,7 @@ from app.service.chroma_service import i_process_answer
 from app.database.database import get_db
 from app.service.analysis_service import get_analysis_service
 from app.service.i_start_service import start_interview_session
-from app.database.schemas.interview import AnalyzeRequest, InterviewReport, ProcessAnswerResponse, AnswerUploadResponse, InterviewCreate, InterviewBasic, InterviewDetail, AnswerCreate, Answer, InterviewResult, InterviewStartRequest, InterviewStartResponse
+from app.database.schemas.interview import AnalyzeReq, I_Report, ProcessAnswerResponse, AnswerUploadResponse, I_Create, I_Basic, I_Detail, AnswerCreate, Answer, I_Result, I_StartReq, I_StartRes
 from app.database.crud.interview import create_i, get_i, list_i, create_answer, get_answer, delete_answer, complete_i, list_results, delete_i, save_audio
 
 
@@ -13,12 +13,10 @@ router=APIRouter(prefix="/interview", tags=["interview"])
 
 
 # DB 질문 기반 인터뷰 시작
-@router.post("/start", response_model=InterviewStartResponse)
-async def start_interview(payload: InterviewStartRequest, db = Depends(get_db)):
+@router.post("/start", response_model=I_StartRes)
+async def start_interview(payload: I_StartReq, db = Depends(get_db)):
     try:
         return await start_interview_session(db, payload)
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=500, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -26,8 +24,8 @@ async def start_interview(payload: InterviewStartRequest, db = Depends(get_db)):
 
 
 # 대화 전체 분석
-@router.post("/analyze", response_model=InterviewReport)
-async def analyze(request:AnalyzeRequest):
+@router.post("/analyze", response_model=I_Report)
+async def analyze(request:AnalyzeReq):
     try:
         service=get_analysis_service()
         result=await service.analyze_interview(request.transcript)
@@ -77,8 +75,8 @@ async def upload_answer_audio(answer_id: int, file: UploadFile = File(...), db =
 
 
 # 인터뷰 생성
-@router.post("", response_model=InterviewBasic)
-async def create_i(payload: InterviewCreate, db = Depends(get_db)):
+@router.post("", response_model=I_Basic)
+async def create_i(payload: I_Create, db = Depends(get_db)):
     return await create_i(
         db=db,
         user_id=payload.user_id,
@@ -89,7 +87,7 @@ async def create_i(payload: InterviewCreate, db = Depends(get_db)):
 
 
 # 인터뷰 단건 조회
-@router.get("/{i_id}", response_model=InterviewDetail)
+@router.get("/{i_id}", response_model=I_Detail)
 async def get_i(i_id: int, db = Depends(get_db)):
     i = await get_i(db, i_id)
     if not i:
@@ -98,7 +96,7 @@ async def get_i(i_id: int, db = Depends(get_db)):
 
 
 # 사용자별 인터뷰 목록
-@router.get("/users/{user_id}/interviews", response_model=list[InterviewBasic])
+@router.get("/users/{user_id}/interviews", response_model=list[I_Basic])
 async def list_user_i(user_id: int, db = Depends(get_db)):
     return await list_i(db, user_id)
 
@@ -131,7 +129,7 @@ async def delete_answer_i(i_id: int, answer_id: int, db = Depends(get_db)):
 
 
 # 인터뷰 완료 처리
-@router.post("/{i_id}/complete", response_model=InterviewBasic)
+@router.post("/{i_id}/complete", response_model=I_Basic)
 async def complete_i(i_id: int, db = Depends(get_db)):
     i = await complete_i(db, i_id)
     if not i:
@@ -140,7 +138,7 @@ async def complete_i(i_id: int, db = Depends(get_db)):
 
 
 # 인터뷰 결과 조회
-@router.get("/{i_id}/results", response_model=list[InterviewResult])
+@router.get("/{i_id}/results", response_model=list[I_Result])
 async def get_results(i_id: int, db = Depends(get_db)):
     return await list_results(db, i_id)
 
