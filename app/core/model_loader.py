@@ -5,8 +5,13 @@ from dotenv import load_dotenv
 from botocore.exceptions import ClientError, NoCredentialsError
 load_dotenv()
 
-# 모델 파일 경로
-MODEL_DIR = Path(__file__).parent.parent / "ml_models"
+# 모델 파일 경로 - S3 사용시 /tmp, 아니면 로컬 경로
+if os.getenv("S3_MODEL_BUCKET"):
+    # ECS/Docker 환경: S3에서 다운로드하므로 /tmp 사용
+    MODEL_DIR = Path("/tmp/ml_models")
+else:
+    # 로컬 환경: 프로젝트 상대 경로 사용
+    MODEL_DIR = Path(__file__).parent.parent / "ml_models"
 
 # S3 설정
 S3_BUCKET = os.getenv("S3_MODEL_BUCKET", "")
@@ -27,8 +32,6 @@ def is_s3_enabled() -> bool:
 def get_s3_client():
     return boto3.client(
         's3',
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
         region_name=os.getenv("AWS_REGION", "ap-northeast-2")
     )
 

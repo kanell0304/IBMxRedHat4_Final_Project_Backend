@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Dict, Optional
 import warnings
 
+from app.core.model_loader import MODEL_DIR
+
 warnings.filterwarnings('ignore')
 
 class VoiceAnalyzer:
@@ -22,7 +24,7 @@ class VoiceAnalyzer:
 
     def _load_models(self):
         try:
-            # 감정 분류 모델 로드
+            # 감정 분류 모델 로드1
             with open(self.model_dir / 'emotion_classifier.pkl', 'rb') as f:
                 self.emotion_model = pickle.load(f)
 
@@ -217,5 +219,5 @@ _analyzer_instance = None
 def get_analyzer() -> VoiceAnalyzer:
     global _analyzer_instance
     if _analyzer_instance is None:
-        _analyzer_instance = VoiceAnalyzer()
+        _analyzer_instance = VoiceAnalyzer(model_dir=str(MODEL_DIR))
     return _analyzer_instance

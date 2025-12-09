@@ -1,8 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import voice_analysis
-from app.routers import interview
-from app.routers import jobs
+from app.routers import voice_analysis, user, interview, jobs
 from contextlib import asynccontextmanager
 from app.database.database import create_tables
 
@@ -51,6 +49,7 @@ app.add_middleware(
 
 
 app.include_router(voice_analysis.router)
+app.include_router(user.router)
 
 @app.get("/")
 async def root():

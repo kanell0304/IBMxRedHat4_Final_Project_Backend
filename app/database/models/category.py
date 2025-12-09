@@ -10,8 +10,6 @@ class MainCategory(Base):
   m_category_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
   m_category_name: Mapped[str] = mapped_column(String(100), nullable=False)
   job_categories: Mapped[List["JobCategory"]] = relationship("JobCategory")
-  # communications: Mapped[List["Communication"]] = relationship("Communication")
-  # presentations: Mapped[List["Presentation"]] = relationship("Presentation")
 
 
 class JobCategory(Base):
