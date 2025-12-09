@@ -35,6 +35,12 @@ class QuestionType(str, Enum):
   COMMON="common"
   JOB="job"
 
+# 질문 난이도
+class DifficultyLevel(str, Enum):
+  EASY="easy"
+  MID="mid"
+  HARD="hard"
+
 # 인터뷰에서 사용할 질문 (공통/직무별)
 class InterviewQuestion(Base):
   __tablename__ = "i_questions"
@@ -43,12 +49,8 @@ class InterviewQuestion(Base):
   # 공통 질문이면 null, 직무 질문이면 FK
   category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("job_categories.job_category_id"), nullable=True)
   question_type: Mapped[QuestionType] = mapped_column(SQLEnum(QuestionType), nullable=False)
+  difficulty: Mapped[Optional[DifficultyLevel]] = mapped_column(SQLEnum(DifficultyLevel), nullable=True)
   question_text: Mapped[str] = mapped_column(String(500), nullable=False)
-
-  # common_question: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False) # 공통 질문
-  # job_q_text: Mapped[Optional[str]] = mapped_column(String(500), nullable=True) # 질문 텍스트
-  # job_q_id: Mapped[Optional[int]] = mapped_column(ForeignKey("job_questions.job_q_id"), nullable=True) # 직무별 질문
-
 
 #사용자가 제출한 인터뷰 답변
 class InterviewAnswer(Base):

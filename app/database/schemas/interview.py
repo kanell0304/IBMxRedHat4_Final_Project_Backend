@@ -41,6 +41,28 @@ class AnswerUploadResponse(BaseModel):
     size: int
 
 
+class InterviewStartRequest(BaseModel):
+    user_id: int
+    question_type: str = Field(..., description="common | job | mixed | (공통질문만/직무관련/섞어서)")
+    job_group: Optional[str] = Field(default=None, description="프론트 선택값 매핑용(필수 아님)")
+    job_role: Optional[str] = Field(default=None, description="직무 관련/섞어서 선택 시 필수")
+    difficulty: Optional[str] = Field(default=None, description="easy | mid | hard (선택)")
+    total_questions: int = Field(default=5, gt=0, description="랜덤으로 선택할 질문 수")
+
+
+class InterviewStartQuestion(BaseModel):
+    q_id: int
+    q_order: int
+    question_text: str
+    class Config:
+        from_attributes = True
+
+
+class InterviewStartResponse(BaseModel):
+    i_id: int
+    questions: List[InterviewStartQuestion]
+
+
 # 인터뷰 생성
 class InterviewCreate(BaseModel):
     user_id: int

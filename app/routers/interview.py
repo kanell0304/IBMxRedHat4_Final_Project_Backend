@@ -4,11 +4,25 @@ from pydub import AudioSegment
 from app.service.chroma_service import i_process_answer
 from app.database.database import get_db
 from app.service.analysis_service import get_analysis_service
-from app.database.schemas.interview import AnalyzeRequest, InterviewReport, ProcessAnswerResponse, AnswerUploadResponse, InterviewCreate, InterviewBasic, InterviewDetail, AnswerCreate, Answer, InterviewResult
+from app.service.i_start_service import start_interview_session
+from app.database.schemas.interview import AnalyzeRequest, InterviewReport, ProcessAnswerResponse, AnswerUploadResponse, InterviewCreate, InterviewBasic, InterviewDetail, AnswerCreate, Answer, InterviewResult, InterviewStartRequest, InterviewStartResponse
 from app.database.crud.interview import create_i, get_i, list_i, create_answer, get_answer, delete_answer, complete_i, list_results, delete_i, save_audio
 
 
 router=APIRouter(prefix="/interview", tags=["interview"])
+
+
+# DB 질문 기반 인터뷰 시작
+@router.post("/start", response_model=InterviewStartResponse)
+async def start_interview(payload: InterviewStartRequest, db = Depends(get_db)):
+    try:
+        return await start_interview_session(db, payload)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"면접 생성 중 오류: {e}")
 
 
 # 대화 전체 분석
