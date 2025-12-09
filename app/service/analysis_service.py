@@ -1,26 +1,13 @@
-from typing import Dict
 from app.service.i_bert_service import get_inference_service
 from app.service.llm.openai_service import OpenAIService
-from app.service.llm.watsonx_service import WatsonxService
 from app.database.schemas.interview import InterviewReport
-from app.core.settings import settings
-
 
 class AnalysisService:
 
     def __init__(self):
-        self.bert_service=get_inference_service() # infernece_service 가져옴
-        self.llm_service=self.get_llm_service() # LLM_PROVIDER 보고 서비스 결정
+        self.bert_service=get_inference_service()
+        self.llm_service=OpenAIService
 
-
-    def get_llm_service(self):
-        if settings.llm_provider=="openai":
-            return OpenAIService()
-        elif settings.llm_provider=="watsonx":
-            return WatsonxService()
-        else:
-            raise ValueError(f"지원하지 않는 LLM_PROVIDER : {settings.llm_provider}")
-        
     async def analyze_interview(self, transcript:str):
 
         # BERT 멀티 라벨 분류

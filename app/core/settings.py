@@ -31,18 +31,10 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
-    # LLM 설정 : openai or watsonx
-    llm_provider:str=Field("", alias="LLM_PROVIDER")
 
     # OpenAI
     openai_api_key:str=Field("", alias="OPENAI_API_KEY")
     openai_model:str=Field("gpt-4o-mini", alias="OPENAI_MODEL")
-
-    # IBM Watsonx
-    watsonx_api_key:str=Field("", alias="WATSONX_API_KEY")
-    watson_project_id:str=Field("", alias="WATSONX_PROJECT_ID")
-    watsonx_url:str=Field("https://us-south.ml.cloud.ibm.com", alias="WATSONX_URL")
-    watsonx_model:str=Field("meta-llama/llama-3-1-70b-instruct", alias="WATSONX_MODEL")
 
 
     @property

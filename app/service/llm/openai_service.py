@@ -3,15 +3,13 @@ from openai import AsyncOpenAI
 from typing import Dict
 from app.core.settings import settings
 from app.prompts.interview_prompts import build_prompt, SYSTEM_MESSAGE
-from app.service.llm.base import BaseLLMService
 
 
-class OpenAIService(BaseLLMService):
+class OpenAIService:
 
     def __init__(self):
         self.client=AsyncOpenAI(api_key=settings.openai_api_key)
         self.model=settings.openai_model
-
 
     async def generate_report(self, transcript:str, bert_analysis:Dict):
         try:
