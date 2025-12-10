@@ -48,9 +48,6 @@ app.add_middleware(
 )
 
 
-app.include_router(voice_analysis.router)
-app.include_router(user.router)
-
 @app.get("/")
 async def root():
     return {
