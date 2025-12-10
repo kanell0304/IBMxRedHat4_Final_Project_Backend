@@ -28,7 +28,7 @@ class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     user_id: int
-    phone_number: str
+    phone_number: Optional[str] = None
     profile_image: Optional[int] = None
     created_at: datetime
 

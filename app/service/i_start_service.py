@@ -1,7 +1,7 @@
 import random
 from typing import List, Optional
 from sqlalchemy import select
-from app.database.crud.category import get_jobcategory
+from app.database.crud.category import create_jobcategory
 from app.database.models.category import JobCategory
 from app.database.models.interview import Interview, InterviewAnswer, InterviewQuestion, InterviewType, QuestionType, DifficultyLevel
 from app.database.schemas.interview import I_StartReq, I_StartRes, I_StartQ
@@ -43,14 +43,77 @@ async def get_jobcat(db, job_role: Optional[str]) -> JobCategory:
     if not job_role:
         raise ValueError("직무(role)를 선택하세요.")
 
-    category = await get_jobcategory(db, job_category_name=job_role)
-    if not category:
-        raise ValueError("요청한 직무 카테고리를 찾을 수 없습니다.")
-    return category
+    # 없으면 생성하여 기본 카테고리로 사용
+    return await create_jobcategory(db, job_category_name=job_role)
+
+COMMON_QUESTIONS = [
+    "자기소개를 해주세요.",
+    "지원 동기를 말씀해주세요.",
+    "본인의 강점과 약점을 설명해주세요.",
+    "최근 성취한 일과 그 과정에서의 역할을 말해주세요.",
+    "입사 후 목표와 계획을 알려주세요.",
+    "갈등 상황을 어떻게 해결했는지 사례를 들어 주세요.",
+    "스트레스를 관리하는 방법을 말해주세요.",
+]
+
+
+def job_questions(job_role: str) -> List[str]:
+    role = job_role or "지원 직무"
+    return [
+        f"{role} 역할에서 중요하다고 생각하는 역량은 무엇이며, 이를 어떻게 발전시켜 왔나요?",
+        f"최근 수행한 {role} 관련 프로젝트/업무를 설명하고, 본인의 기여도를 구체적으로 말해주세요.",
+        f"{role} 업무에서 직면했던 가장 큰 기술적/비즈니스적 문제와 해결 과정을 설명해주세요.",
+        f"{role}로서 성과를 측정하는 지표나 기준을 어떻게 설정하고 관리했는지 알려주세요.",
+        f"{role} 관련 최신 트렌드나 기술을 어떻게 학습하고 적용했는지 사례를 들어 주세요.",
+        f"{role} 업무에서 실패하거나 어려웠던 사례를 공유하고, 배운 점을 설명해주세요.",
+    ]
+
+
+async def add_common_questions(db, *, total: int, difficulty: Optional[DifficultyLevel]) -> List[InterviewQuestion]:
+    created: List[InterviewQuestion] = []
+    for text in COMMON_QUESTIONS[: total]:
+        q = InterviewQuestion(
+            category_id=None,
+            question_type=QuestionType.COMMON,
+            difficulty=difficulty,
+            question_text=text,
+        )
+        db.add(q)
+        created.append(q)
+    await db.flush()
+    return created
+
+
+async def add_job_questions(
+    db,
+    *,
+    category_id: int,
+    job_role: str,
+    total: int,
+    difficulty: Optional[DifficultyLevel],
+) -> List[InterviewQuestion]:
+    created: List[InterviewQuestion] = []
+    for text in job_questions(job_role)[: total]:
+        q = InterviewQuestion(
+            category_id=category_id,
+            question_type=QuestionType.JOB,
+            difficulty=difficulty,
+            question_text=text,
+        )
+        db.add(q)
+        created.append(q)
+    await db.flush()
+    return created
 
 
 async def load_q(
-    db, *, question_type: str, category_id: Optional[int], total_questions: int, difficulty: Optional[DifficultyLevel]
+    db,
+    *,
+    question_type: str,
+    category_id: Optional[int],
+    total_questions: int,
+    difficulty: Optional[DifficultyLevel],
+    job_role: Optional[str],
 ) -> List[InterviewQuestion]:
     def _apply_difficulty(query):
         if difficulty:
@@ -61,6 +124,10 @@ async def load_q(
         query = select(InterviewQuestion).where(InterviewQuestion.question_type == QuestionType.COMMON)
         result = await db.execute(_apply_difficulty(query))
         commons = result.scalars().all()
+        if len(commons) < total_questions:
+            await add_common_questions(db, total=total_questions - len(commons), difficulty=difficulty)
+            result = await db.execute(_apply_difficulty(query))
+            commons = result.scalars().all()
         if len(commons) < total_questions:
             raise ValueError("공통 질문 수가 충분하지 않습니다.")
         return random.sample(commons, total_questions)
@@ -74,6 +141,16 @@ async def load_q(
         )
         result = await db.execute(_apply_difficulty(query))
         jobs = result.scalars().all()
+        if len(jobs) < total_questions:
+            await add_job_questions(
+                db,
+                category_id=category_id,
+                job_role=job_role or "",
+                total=total_questions - len(jobs),
+                difficulty=difficulty,
+            )
+            result = await db.execute(_apply_difficulty(query))
+            jobs = result.scalars().all()
         if len(jobs) < total_questions:
             raise ValueError("해당 직무 질문 수가 충분하지 않습니다.")
         return random.sample(jobs, total_questions)
@@ -92,6 +169,22 @@ async def load_q(
     job_result = await db.execute(_apply_difficulty(job_query))
     commons = common_result.scalars().all()
     jobs = job_result.scalars().all()
+
+    if len(commons) + len(jobs) < total_questions:
+        if len(commons) < total_questions:
+            await add_common_questions(db, total=total_questions - len(commons), difficulty=difficulty)
+            common_result = await db.execute(_apply_difficulty(common_query))
+            commons = common_result.scalars().all()
+        if len(jobs) < total_questions:
+            await add_job_questions(
+                db,
+                category_id=category_id,
+                job_role=job_role or "",
+                total=total_questions - len(jobs),
+                difficulty=difficulty,
+            )
+            job_result = await db.execute(_apply_difficulty(job_query))
+            jobs = job_result.scalars().all()
     pool = commons + jobs
 
     if len(pool) < total_questions:
@@ -113,26 +206,9 @@ async def load_q(
     return selected
 
 
-async def start_interview_session(
-    db, payload: I_StartReq
-) -> I_StartRes:
+async def start_interview_session(db, payload: I_StartReq) -> I_StartRes:
     q_type = norm_q_type(payload.question_type)
     total_questions = payload.total_questions or 5
-
-    category: Optional[JobCategory] = None
-    if q_type in ("job", "mixed"):
-        category = await get_jobcat(db, payload.job_role)
-
-    # 공통질문만 선택 시 난이도는 무시
-    difficulty = None if q_type == "common" else norm_diff(payload.difficulty)
-
-    questions = await load_q(
-        db,
-        question_type=q_type,
-        category_id=category.job_category_id if category else None,
-        total_questions=total_questions,
-        difficulty=difficulty,
-    )
 
     interview_type = {
         "common": InterviewType.COMMON,
@@ -141,6 +217,22 @@ async def start_interview_session(
     }[q_type]
 
     async with db.begin():
+        category: Optional[JobCategory] = None
+        if q_type in ("job", "mixed"):
+            category = await get_jobcat(db, payload.job_role)
+
+        # 공통질문만 선택 시 난이도는 무시
+        difficulty = None if q_type == "common" else norm_diff(payload.difficulty)
+
+        questions = await load_q(
+            db,
+            question_type=q_type,
+            category_id=category.job_category_id if category else None,
+            total_questions=total_questions,
+            difficulty=difficulty,
+            job_role=payload.job_role,
+        )
+
         interview = Interview(
             user_id=payload.user_id,
             category_id=category.job_category_id if category else None,

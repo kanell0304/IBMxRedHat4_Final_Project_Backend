@@ -19,18 +19,24 @@ async def list_job_categories(db, m_category_id: Optional[int] = None) -> List[J
   return result.scalars().all()
 
 
-async def get_jobcategory(
-  db, *, job_category_name: str, main_category_name: Optional[str] = None
-) -> Optional[JobCategory]:
-  query = select(JobCategory)
-  if main_category_name:
-    query = query.join(MainCategory, JobCategory.m_category_id == MainCategory.m_category_id)
-    query = query.where(
-      MainCategory.m_category_name == main_category_name,
-      JobCategory.job_category_name == job_category_name,
+async def create_jobcategory(db, job_category_name: str, main_category_name: Optional[str] = None):
+  existing = await db.execute(
+    select(JobCategory).where(
+      JobCategory.job_category_name == job_category_name
     )
-  else:
-    query = query.where(JobCategory.job_category_name == job_category_name)
+  )
+  cat = existing.scalars().first()
+  if cat:
+    return cat
 
-  result = await db.execute(query)
-  return result.scalars().first()
+  main_category_id = None
+  if main_category_name:
+    main = await db.execute(select(MainCategory).where(MainCategory.m_category_name == main_category_name))
+    main_obj = main.scalars().first()
+    if main_obj:
+      main_category_id = main_obj.m_category_id
+
+  new_category = JobCategory(job_category_name=job_category_name, m_category_id=main_category_id)
+  db.add(new_category)
+  await db.flush()  # job_category_id 확보
+  return new_category
