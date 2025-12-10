@@ -59,7 +59,7 @@ async def kakao_login_or_signup(db: AsyncSession, code: str) -> dict:
     nickname = profile.get("nickname", f"kakao_user_{kakao_id}") # 닉네임(보통은 본명)
     
     if not email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="카카오 계정에서 이메일 정보를 가져올 수 없습니다")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"error": "EMAIL_REQUIRED", "message": "카카오 로그인 시 이메일 제공 동의가 필요합니다. 다시 시도해주세요."})
     
     # DB에서 소셜 ID로 사용자 조회 - 이미 있는지 확인
     user = await UserCrud.get_user_by_social_id(db, "kakao", kakao_id)
