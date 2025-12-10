@@ -34,28 +34,44 @@ class PresentationCRUD:
     # 분석 결과 저장
     @staticmethod
     async def create_result(db: AsyncSession, pr_id: int, v_f_id: int, analysis_data: Dict) -> PrResult:
+        # emotion_scores 안전하게 가져오기
+        emotion_scores = analysis_data.get('emotion_scores', {})
+        anxiety_ratio = None
+        embarrassment_ratio = None
+        
+        if emotion_scores:
+            # 딕셔너리에서 값 추출
+            anxiety_val = emotion_scores.get('Anxious')
+            embarrassment_val = emotion_scores.get('Embarrassed')
+            
+            # float로 변환 (리스트나 다른 타입일 경우 대비)
+            if anxiety_val is not None:
+                anxiety_ratio = float(anxiety_val) if not isinstance(anxiety_val, (list, tuple)) else float(anxiety_val[0]) if anxiety_val else None
+            if embarrassment_val is not None:
+                embarrassment_ratio = float(embarrassment_val) if not isinstance(embarrassment_val, (list, tuple)) else float(embarrassment_val[0]) if embarrassment_val else None
+        
         result = PrResult(
             pr_id=pr_id,
             v_f_id=v_f_id,
-            duration=analysis_data['duration'],
-            duration_min=analysis_data['duration_min'],
-            total_speech_time=analysis_data['total_speech_time'],
-            silence_duration=analysis_data['silence_duration'],
-            silence_ratio=analysis_data['silence_ratio'],
-            avg_volume_db=analysis_data['avg_volume_db'],
-            max_volume_db=analysis_data['max_volume_db'],
-            avg_pitch=analysis_data['avg_pitch'],
-            pitch_std=analysis_data['pitch_std'],
-            pitch_range=analysis_data['pitch_range'],
-            speech_rate_total=analysis_data.get('speech_rate_total'),
-            speech_rate_actual=analysis_data.get('speech_rate_actual'),
-            num_segments=analysis_data['num_segments'],
-            avg_segment_length=analysis_data['avg_segment_length'],
-            energy_std=analysis_data['energy_std'],
-            avg_zcr=analysis_data['avg_zcr'],
-            spectral_centroid=analysis_data['spectral_centroid'],
-            anxiety_ratio=analysis_data['emotion_scores'].get('Anxious'),
-            embarrassment_ratio=analysis_data['emotion_scores'].get('Embarrassed')
+            duration=float(analysis_data['duration']),
+            duration_min=float(analysis_data['duration_min']),
+            total_speech_time=float(analysis_data['total_speech_time']),
+            silence_duration=float(analysis_data['silence_duration']),
+            silence_ratio=float(analysis_data['silence_ratio']),
+            avg_volume_db=float(analysis_data['avg_volume_db']),
+            max_volume_db=float(analysis_data['max_volume_db']),
+            avg_pitch=float(analysis_data['avg_pitch']),
+            pitch_std=float(analysis_data['pitch_std']),
+            pitch_range=float(analysis_data['pitch_range']),
+            speech_rate_total=float(analysis_data['speech_rate_total']) if analysis_data.get('speech_rate_total') is not None else None,
+            speech_rate_actual=float(analysis_data['speech_rate_actual']) if analysis_data.get('speech_rate_actual') is not None else None,
+            num_segments=int(analysis_data['num_segments']),
+            avg_segment_length=float(analysis_data['avg_segment_length']),
+            energy_std=float(analysis_data['energy_std']),
+            avg_zcr=float(analysis_data['avg_zcr']),
+            spectral_centroid=float(analysis_data['spectral_centroid']),
+            anxiety_ratio=anxiety_ratio,
+            embarrassment_ratio=embarrassment_ratio
         )
 
         db.add(result)
@@ -67,20 +83,28 @@ class PresentationCRUD:
     # AI가 해준 피드백 저장
     @staticmethod
     async def create_feedback(db: AsyncSession, pr_id: int, result_id: int, scores: Dict, brief_feedback: str, detailed_feedback: Dict) -> PrFeedback:
+        # 각 필드를 안전하게 추출 (리스트나 튜플이 아닌 문자열로 변환)
+        def safe_str(value):
+            if value is None:
+                return None
+            if isinstance(value, (list, tuple)):
+                return ', '.join(str(v) for v in value)
+            return str(value)
+        
         feedback = PrFeedback(
             pr_id=pr_id,
             result_id=result_id,
-            volume_score=scores['volume_score'],
-            pitch_score=scores['pitch_score'],
-            speed_score=scores['speed_score'],
-            silence_score=scores['silence_score'],
-            clarity_score=scores['clarity_score'],
-            overall_score=scores['overall_score'],
+            volume_score=int(scores.get('volume_score', 0)),
+            pitch_score=int(scores.get('pitch_score', 0)),
+            speed_score=int(scores.get('speed_score', 0)),
+            silence_score=int(scores.get('silence_score', 0)),
+            clarity_score=int(scores.get('clarity_score', 0)),
+            overall_score=int(scores.get('overall_score', 0)),
             brief_feedback=brief_feedback,
-            detailed_summary=detailed_feedback.get('summary'),
-            detailed_strengths=detailed_feedback.get('strengths'),
-            detailed_improvements=detailed_feedback.get('improvements'),
-            detailed_advice=detailed_feedback.get('detailed_advice')
+            detailed_summary=safe_str(detailed_feedback.get('summary')),
+            detailed_strengths=safe_str(detailed_feedback.get('strengths')),
+            detailed_improvements=safe_str(detailed_feedback.get('improvements')),
+            detailed_advice=safe_str(detailed_feedback.get('detailed_advice'))
         )
 
         db.add(feedback)

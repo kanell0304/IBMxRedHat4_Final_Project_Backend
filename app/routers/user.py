@@ -107,7 +107,7 @@ async def get_authenticated_user(current_user: UserModel = Depends(get_current_u
 
 
 @router.get("/", response_model=List[UserResponse])
-async def read_all_user_route(db: AsyncSession = Depends(get_db), current_user: UserModel = Depends(get_current_user)):
+async def read_all_user_route(db: AsyncSession = Depends(get_db)):
     users = await UserService.read_all_user(db)
 
     return users

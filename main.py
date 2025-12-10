@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import voice_analysis, user, interview, jobs, image, presentation
-# from app.routers import communication
+from app.routers import voice_analysis, user, interview, jobs, image, presentation, communication
 from contextlib import asynccontextmanager
 from app.database.database import create_tables
 
@@ -48,7 +47,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# app.include_router(communication.router)
+app.include_router(communication.router)
 app.include_router(image.router)
 app.include_router(interview.router)
 app.include_router(jobs.router)
