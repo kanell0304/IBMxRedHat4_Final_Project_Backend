@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status, UploadFile
 from app.core.security import hash_password, verify_password
-from app.core.jwt import create_access_token, create_refresh_token, get_pwd_hash
+from app.core.jwt import create_access_token, create_refresh_token
 from datetime import datetime
 from app.database.crud.user import UserCrud as user_crud
 from app.database.schemas.user import UserUpdate, UserReadWithProfile
@@ -149,7 +149,7 @@ class UserService:
 
         try:
             # 비밀번호 해시화 및 업데이트
-            hashed_password = get_pwd_hash(new_password)
+            hashed_password = hash_password(new_password)
             await UserCrud.update_user(db, user.user_id, hashed_password=hashed_password)
 
             # 인증코드 초기화

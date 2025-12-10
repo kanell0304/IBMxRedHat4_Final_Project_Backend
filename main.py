@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import voice_analysis, user, interview, jobs, image, communication
+from app.routers import voice_analysis, user, interview, jobs, image, presentation, communication
 from contextlib import asynccontextmanager
 from app.database.database import create_tables
 
@@ -41,15 +41,19 @@ app = FastAPI(title="Team Project API", description="음성 분석 API", version
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(communication.router)
+app.include_router(image.router)
+app.include_router(interview.router)
+app.include_router(jobs.router)
+app.include_router(presentation.router)
+app.include_router(user.router)
+app.include_router(voice_analysis.router) # 테스트 용으로 일단 연결해둠
 
 @app.get("/")
 async def root():
@@ -68,9 +72,3 @@ async def root():
 async def health():
     return {"status": "ok"}
 
-app.include_router(communication.router)
-app.include_router(image.router)
-app.include_router(interview.router)
-app.include_router(jobs.router)
-app.include_router(user.router)
-app.include_router(voice_analysis.router)
