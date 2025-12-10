@@ -41,7 +41,12 @@ app = FastAPI(title="Team Project API", description="음성 분석 API", version
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",  # 프론트엔드 개발 서버
+        "http://127.0.0.1:5173",
+        # 프로덕션 환경이 있다면 여기에 추가
+        # "https://yourdomain.com",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
