@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Integer, func, Text, JSON, LargeBinary
+from sqlalchemy import DateTime, ForeignKey, String, Integer, func, Text, JSON, LargeBinary
 from app.database.database import Base
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -52,6 +52,11 @@ class InterviewQuestion(Base):
   difficulty: Mapped[Optional[DifficultyLevel]] = mapped_column(SQLEnum(DifficultyLevel), nullable=True)
   question_text: Mapped[str] = mapped_column(String(500), nullable=False)
 
+
+class ResultScope(str, Enum):
+  OVERALL="overall"
+  PER_QUESTION="per_question"
+
 #사용자가 제출한 인터뷰 답변
 class InterviewAnswer(Base):
   __tablename__ = "i_answers"
@@ -61,14 +66,14 @@ class InterviewAnswer(Base):
   q_id: Mapped[Optional[int]] = mapped_column(ForeignKey("i_questions.q_id"), nullable=True)
   q_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 질문 순서(1~5)
   duration_sec: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 질문당 소요시간
-  # q_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 공통 직무관련 질문 타입
   audio_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # 파일 경로/키
   audio_format: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)  # 파일 확장자
   audio_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary(length=16777215), nullable=True)  # 원본 바이너리
   transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # STT 텍스트
   labels_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # BERT 분류 결과 저장
   created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
-  stt_metrics_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+  stt_metrics_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True) # STT 메트릭
+  scope: Mapped[ResultScope] = mapped_column(SQLEnum(ResultScope), nullable=False, default=ResultScope.OVERALL)
 
   results: Mapped[List["InterviewResult"]] = relationship("InterviewResult", cascade="all, delete-orphan")  # 세부 평가/결과
   interview: Mapped["Interview"] = relationship("Interview", back_populates="answers")  # 인터뷰 역참조
@@ -84,9 +89,10 @@ class InterviewResult(Base):
   script_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
   q_id: Mapped[Optional[int]] = mapped_column(ForeignKey("i_questions.q_id"), nullable=True)
   i_answer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("i_answers.i_answer_id"), nullable=True)
-  overall: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-  # formal: Mapped[Optional[int]] = mapped_column(nullable=True) # 미정
-  # sentence_speed: Mapped[Optional[int]] = mapped_column(nullable=True) # 미정
+  
+  scope: Mapped[str] = mapped_column(String(20), nullable=False)
+  report_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+  created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
 
   interview:Mapped["Interview"]=relationship("Interview", back_populates="results")
   answer:Mapped[Optional["InterviewAnswer"]]=relationship("InterviewAnswer", back_populates="results")

@@ -139,8 +139,10 @@ async def i_process_answer(answer_id: int, db):
   interview: Interview | None = await db.get(Interview, answer.i_id)
   if not interview:
     raise ValueError("해당 인터뷰 정보를 찾을 수 없습니다.")
-  transcript = answer.transcript  # 기존 STT 결과가 있으면 재사용
-
+  
+  # 기존 계산값 재사용
+  transcript = answer.transcript 
+  stt_metrics=answer.stt_metrics_json
 
   # transcript 없으면 STT 수행
   if not transcript:

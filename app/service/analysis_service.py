@@ -1,12 +1,12 @@
 from app.service.i_bert_service import get_inference_service
-from app.service.llm.openai_service import OpenAIService
+from app.service.llm_service import OpenAIService
 from app.database.schemas.interview import I_Report
 
 class AnalysisService:
 
     def __init__(self):
         self.bert_service=get_inference_service()
-        self.llm_service=OpenAIService
+        self.llm_service=OpenAIService()
 
     async def analyze_interview(self, transcript:str):
 
