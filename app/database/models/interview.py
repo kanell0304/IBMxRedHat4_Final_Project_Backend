@@ -20,7 +20,9 @@ class Interview(Base):
   i_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
   user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
   category_id: Mapped[int] = mapped_column(ForeignKey("job_categories.job_category_id"), nullable=True)  # 직무 카테고리
+  language: Mapped[str] = mapped_column(String(10), nullable=False, default="ko")  # 질문/세션 언어
   created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+  deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True) # 손봐야함
   status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 진행 상태(예: 0-대기, 1-진행, 2-완료) # 구현 할지 안할지는 미정
   total_questions: Mapped[int] = mapped_column(Integer, nullable=False, default=5)  # 진행할 질문 수(기본 5)
   current_question: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 현재 진행 중인 질문 순번
@@ -35,6 +37,12 @@ class QuestionType(str, Enum):
   COMMON="common"
   JOB="job"
 
+# 질문 난이도
+class DifficultyLevel(str, Enum):
+  EASY="easy"
+  MID="mid"
+  HARD="hard"
+
 # 인터뷰에서 사용할 질문 (공통/직무별)
 class InterviewQuestion(Base):
   __tablename__ = "i_questions"
@@ -42,13 +50,10 @@ class InterviewQuestion(Base):
   q_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
   # 공통 질문이면 null, 직무 질문이면 FK
   category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("job_categories.job_category_id"), nullable=True)
+  language: Mapped[str] = mapped_column(String(10), nullable=False, default="ko")
   question_type: Mapped[QuestionType] = mapped_column(SQLEnum(QuestionType), nullable=False)
+  difficulty: Mapped[Optional[DifficultyLevel]] = mapped_column(SQLEnum(DifficultyLevel), nullable=True)
   question_text: Mapped[str] = mapped_column(String(500), nullable=False)
-
-  # common_question: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False) # 공통 질문
-  # job_q_text: Mapped[Optional[str]] = mapped_column(String(500), nullable=True) # 질문 텍스트
-  # job_q_id: Mapped[Optional[int]] = mapped_column(ForeignKey("job_questions.job_q_id"), nullable=True) # 직무별 질문
-
 
 #사용자가 제출한 인터뷰 답변
 class InterviewAnswer(Base):
@@ -60,11 +65,12 @@ class InterviewAnswer(Base):
   q_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 질문 순서(1~5)
   duration_sec: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 질문당 소요시간
   # q_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 공통 직무관련 질문 타입
-  audio_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # 파일 경로/키
-  audio_format: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)  # 파일 확장자
-  audio_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary(length=16777215), nullable=True)  # 원본 바이너리
+  # audio_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # 파일 경로/키
+  # audio_format: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)  # 파일 확장자
+  # audio_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary(length=16777215), nullable=True)  # 원본 바이너리
   transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # STT 텍스트
   labels_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # BERT 분류 결과 저장
+  stt_metrics_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
   created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
 
   results: Mapped[List["InterviewResult"]] = relationship("InterviewResult", cascade="all, delete-orphan")  # 세부 평가/결과

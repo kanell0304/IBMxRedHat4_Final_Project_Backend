@@ -89,7 +89,7 @@ class PrResult(Base):
 # 발표 피드백 테이블
 class PrFeedback(Base):
     __tablename__ = "pr_feedbacks"
-    
+
     feedback_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     pr_id: Mapped[int] = mapped_column(ForeignKey("presentations.pr_id"), nullable=False)
     result_id: Mapped[int] = mapped_column(ForeignKey("pr_results.result_id"), nullable=False)
@@ -98,19 +98,23 @@ class PrFeedback(Base):
     volume_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True) # 음량 적절성 점수
     pitch_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True) # 억양/음높이 점수
     speed_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True) # 발화 속도 점수
+    silence_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True) # 침묵 구간 점수
     clarity_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True) # 명료도 점수
     overall_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True) # 종합 점수
-    
+
     # 감정 분석 결과
     sentiment: Mapped[Optional[str]] = mapped_column(String(50), nullable=True) # 주된 감정 (불안/당황 중 비율 높은 것)
     confidence_level: Mapped[Optional[str]] = mapped_column(String(20), nullable=True) # 자신감 수준: high/medium/low (음성 특성+감정 비율로 계산)
-    
-    # AI 피드백 텍스트
-    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 발표 요약 및 전반적 평가
-    strengths: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 잘한 점
-    improvements: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 개선할 점
+
+    # AI 피드백(simple_feedback)
+    brief_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 간단한 피드백
+
+    # AI 피드백(detail_feedback)
+    detailed_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 발표 요약 및 전반적 평가
+    detailed_strengths: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 잘한 점
+    detailed_improvements: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 개선할 점
     detailed_advice: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 상세 조언
-    
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False) # 분석 생성일
 
     presentation: Mapped["Presentation"] = relationship("Presentation", back_populates="feedbacks")
