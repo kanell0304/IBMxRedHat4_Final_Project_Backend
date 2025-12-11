@@ -64,30 +64,39 @@ async def get_presentation(pr_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Presentation not found")
 
     return {
-        "success": True, # 응답 결과
+        "success": True,
         "data": {
             "pr_id": presentation.pr_id,
-            "title": presentation.title, # 발표 제목
-            "description": presentation.description, # 발표 설명
-            "results": [ # 결과
+            "title": presentation.title,
+            "description": presentation.description,
+            "results": [
                 {
                     "result_id": r.result_id,
-                    "duration_min": r.duration_min,
-                    "emotion": "Anxious" if r.anxiety_ratio > r.embarrassment_ratio else "Embarrassed" # 일단 '불안/당황' 만 응답 향 후 변경 가능성 있음
+                    "duration_min": float(r.duration_min) if r.duration_min else 0.0,
+                    "avg_volume_db": float(r.avg_volume_db) if r.avg_volume_db else 0.0,
+                    "avg_pitch": float(r.avg_pitch) if r.avg_pitch else 0.0,
+                    "silence_ratio": float(r.silence_ratio) if r.silence_ratio else 0.0,
+                    "speech_rate": float(r.speech_rate_actual or r.speech_rate_total or 0),
+                    "emotion": "Anxious" if (r.anxiety_ratio or 0) > (r.embarrassment_ratio or 0) else "Embarrassed",
+                    "emotion_confidence": float(max(r.anxiety_ratio or 0, r.embarrassment_ratio or 0))
                 }
                 for r in presentation.results
             ],
             "feedbacks": [
                 {
                     "feedback_id": f.feedback_id,
-                    "brief": f.brief_feedback, # 간단한 피드백
-                    "scores": { # 점수
-                        "volume": f.volume_score, # 목소리 점수
-                        "pitch": f.pitch_score, # 피치 점수
-                        "speed": f.speed_score, # 말하기 속도 점수
-                        "silence": f.silence_score, # 침묵 구간 점수
-                        "clarity": f.clarity_score, # 명료함(또박또박, 정확하게) 점수
-                        "overall": f.overall_score # 종합 점수
+                    "brief": f.brief_feedback or "",
+                    "detailed_summary": f.detailed_summary or "",
+                    "detailed_strengths": f.detailed_strengths or "",
+                    "detailed_improvements": f.detailed_improvements or "",
+                    "detailed_advice": f.detailed_advice or "",
+                    "scores": {
+                        "volume": int(f.volume_score) if f.volume_score else 0,
+                        "pitch": int(f.pitch_score) if f.pitch_score else 0,
+                        "speed": int(f.speed_score) if f.speed_score else 0,
+                        "silence": int(f.silence_score) if f.silence_score else 0,
+                        "clarity": int(f.clarity_score) if f.clarity_score else 0,
+                        "overall": int(f.overall_score) if f.overall_score else 0
                     }
                 }
                 for f in presentation.feedbacks
