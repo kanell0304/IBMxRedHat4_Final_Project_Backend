@@ -5,7 +5,7 @@ load_dotenv()
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.database import get_db
-from app.database.schemas.user import UserCreate, UserResponse, UserLogin, UserUpdate, Token, UserBase, KakaoLoginResponse, KakaoCallbackRequest, ForgotPasswordRequest, ResetPasswordWithCode
+from app.database.schemas.user import UserCreate, UserResponse, UserLogin, UserUpdate, Token, UserBase, KakaoLoginResponse, KakaoCallbackRequest, ForgotPasswordRequest, ResetPasswordWithCode, UserReadWithProfile
 from ..service.user import UserService
 from app.database.models.user import User as UserModel
 from typing import List, Optional
@@ -100,14 +100,14 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     return new_user
 
 
-# 사용자 조회
-@router.get("/me", response_model=UserResponse)
-async def get_authenticated_user(current_user: UserModel = Depends(get_current_user)):
-    return current_user
+# 사용자 조회 - 프로필 이미지 URL 포함
+@router.get("/me", response_model=UserReadWithProfile)
+async def get_authenticated_user(current_user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    return await UserService.get_user_with_profile(db, current_user.user_id)
 
 
 @router.get("/", response_model=List[UserResponse])
-async def read_all_user_route(db: AsyncSession = Depends(get_db), current_user: UserModel = Depends(get_current_user)):
+async def read_all_user_route(db: AsyncSession = Depends(get_db)):
     users = await UserService.read_all_user(db)
 
     return users
@@ -156,12 +156,19 @@ async def refresh_token(response: Response,  refresh_token: Optional[str] = Cook
 # 카카오 로그인 URL 생성
 @router.get("/kakao/login-url")
 async def get_kakao_login_url():
+    # 기본 URL
     kakao_auth_url = (
         f"https://kauth.kakao.com/oauth/authorize"
         f"?client_id={os.getenv('KAKAO_CLIENT_ID')}"
         f"&redirect_uri={os.getenv('KAKAO_REDIRECT_URI')}"
         f"&response_type=code"
     )
+    
+    # 개발 환경에서만 prompt=login 추가 (테스트용)
+    environment = os.getenv('ENVIRONMENT', 'production')
+    if environment == 'development':
+        kakao_auth_url += "&prompt=login"
+    
     return {"auth_url": kakao_auth_url}
 
 

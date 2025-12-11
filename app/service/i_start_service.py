@@ -46,19 +46,45 @@ async def get_jobcat(db, job_role: Optional[str]) -> JobCategory:
     # 없으면 생성하여 기본 카테고리로 사용
     return await create_jobcategory(db, job_category_name=job_role)
 
-COMMON_QUESTIONS = [
-    "자기소개를 해주세요.",
-    "지원 동기를 말씀해주세요.",
-    "본인의 강점과 약점을 설명해주세요.",
-    "최근 성취한 일과 그 과정에서의 역할을 말해주세요.",
-    "입사 후 목표와 계획을 알려주세요.",
-    "갈등 상황을 어떻게 해결했는지 사례를 들어 주세요.",
-    "스트레스를 관리하는 방법을 말해주세요.",
-]
+COMMON_QUESTIONS = {
+    "ko": [
+        "자기소개를 해주세요.",
+        "지원 동기를 말씀해주세요.",
+        "본인의 강점과 약점을 설명해주세요.",
+        "최근 성취한 일과 그 과정에서의 역할을 말해주세요.",
+        "입사 후 목표와 계획을 알려주세요.",
+        "갈등 상황을 어떻게 해결했는지 사례를 들어 주세요.",
+        "스트레스를 관리하는 방법을 말해주세요.",
+    ],
+    "en": [
+        "please tell us about yourself briefly",
+        "What motivated you to apply for this role?",
+        "Why should we hire you?",
+        "What are you passionate about?",
+        "What are your greatest strengths?",
+        "What are your weaknesses?",
+        "what is your greatest accomplishment in life?",
+        "What are your furture goal? in life and in career?",
+        "Where do you see yourself in five years?",
+        "How do you handle conflict in the workplace?",
+        "How do you manage stress?",
+        "Do you have any questions for us?",
+    ],
+}
 
 
-def job_questions(job_role: str) -> List[str]:
-    role = job_role or "지원 직무"
+def job_questions(job_role: str, language: str) -> List[str]:
+    lang = (language or "ko").lower()
+    role = job_role or ("applied role" if lang == "en" else "지원 직무")
+    if lang == "en":
+        return [
+            f"What core competencies does a {role} need, and how have you built them?",
+            f"Walk me through a recent {role} project and the impact you had.",
+            f"What was the hardest technical or business issue in your {role} work, and how did you resolve it?",
+            f"How do you define and track success metrics as a {role}?",
+            f"How do you stay current with {role}-related trends or tech? Give a concrete example.",
+            f"Tell me about a setback in your {role} work and what you learned from it.",
+        ]
     return [
         f"{role} 역할에서 중요하다고 생각하는 역량은 무엇이며, 이를 어떻게 발전시켜 왔나요?",
         f"최근 수행한 {role} 관련 프로젝트/업무를 설명하고, 본인의 기여도를 구체적으로 말해주세요.",
@@ -69,14 +95,16 @@ def job_questions(job_role: str) -> List[str]:
     ]
 
 
-async def add_common_questions(db, *, total: int, difficulty: Optional[DifficultyLevel]) -> List[InterviewQuestion]:
+async def add_common_questions(db, total: int, difficulty: Optional[DifficultyLevel], language: str):
     created: List[InterviewQuestion] = []
-    for text in COMMON_QUESTIONS[: total]:
+    pool = COMMON_QUESTIONS.get((language or "ko").lower(), COMMON_QUESTIONS["ko"])
+    for text in pool[: total]:
         q = InterviewQuestion(
             category_id=None,
             question_type=QuestionType.COMMON,
             difficulty=difficulty,
             question_text=text,
+            language=(language or "ko").lower(),
         )
         db.add(q)
         created.append(q)
@@ -84,21 +112,17 @@ async def add_common_questions(db, *, total: int, difficulty: Optional[Difficult
     return created
 
 
-async def add_job_questions(
-    db,
-    *,
-    category_id: int,
-    job_role: str,
-    total: int,
-    difficulty: Optional[DifficultyLevel],
-) -> List[InterviewQuestion]:
+async def add_q(
+    db, category_id: int, job_role: str, total: int, difficulty: Optional[DifficultyLevel], language: str
+):
     created: List[InterviewQuestion] = []
-    for text in job_questions(job_role)[: total]:
+    for text in job_questions(job_role, language)[: total]:
         q = InterviewQuestion(
             category_id=category_id,
             question_type=QuestionType.JOB,
             difficulty=difficulty,
             question_text=text,
+            language=(language or "ko").lower(),
         )
         db.add(q)
         created.append(q)
@@ -106,26 +130,25 @@ async def add_job_questions(
     return created
 
 
-async def load_q(
-    db,
-    *,
-    question_type: str,
-    category_id: Optional[int],
-    total_questions: int,
-    difficulty: Optional[DifficultyLevel],
-    job_role: Optional[str],
-) -> List[InterviewQuestion]:
+async def load_q(db, question_type: str, category_id: Optional[int], total_questions: int, difficulty: Optional[DifficultyLevel], job_role: Optional[str], language: str):
     def _apply_difficulty(query):
         if difficulty:
             return query.where(InterviewQuestion.difficulty == difficulty)
         return query
 
+    # 영어는 공통 질문만 허용
+    if language == "en" and question_type != "common":
+        raise ValueError("English interviews support common questions only.")
+
     if question_type == "common":
-        query = select(InterviewQuestion).where(InterviewQuestion.question_type == QuestionType.COMMON)
+        query = select(InterviewQuestion).where(
+            InterviewQuestion.question_type == QuestionType.COMMON,
+            InterviewQuestion.language == language,
+        )
         result = await db.execute(_apply_difficulty(query))
         commons = result.scalars().all()
         if len(commons) < total_questions:
-            await add_common_questions(db, total=total_questions - len(commons), difficulty=difficulty)
+            await add_common_questions(db, total=total_questions - len(commons), difficulty=difficulty, language=language)
             result = await db.execute(_apply_difficulty(query))
             commons = result.scalars().all()
         if len(commons) < total_questions:
@@ -138,16 +161,18 @@ async def load_q(
         query = select(InterviewQuestion).where(
             InterviewQuestion.question_type == QuestionType.JOB,
             InterviewQuestion.category_id == category_id,
+            InterviewQuestion.language == language,
         )
         result = await db.execute(_apply_difficulty(query))
         jobs = result.scalars().all()
         if len(jobs) < total_questions:
-            await add_job_questions(
+            await add_q(
                 db,
                 category_id=category_id,
                 job_role=job_role or "",
                 total=total_questions - len(jobs),
                 difficulty=difficulty,
+                language=language,
             )
             result = await db.execute(_apply_difficulty(query))
             jobs = result.scalars().all()
@@ -159,10 +184,14 @@ async def load_q(
     if not category_id:
         raise ValueError("섞어서 선택 시 직무 정보를 함께 전달해주세요.")
 
-    common_query = select(InterviewQuestion).where(InterviewQuestion.question_type == QuestionType.COMMON)
+    common_query = select(InterviewQuestion).where(
+        InterviewQuestion.question_type == QuestionType.COMMON,
+        InterviewQuestion.language == language,
+    )
     job_query = select(InterviewQuestion).where(
         InterviewQuestion.question_type == QuestionType.JOB,
         InterviewQuestion.category_id == category_id,
+        InterviewQuestion.language == language,
     )
 
     common_result = await db.execute(_apply_difficulty(common_query))
@@ -172,16 +201,17 @@ async def load_q(
 
     if len(commons) + len(jobs) < total_questions:
         if len(commons) < total_questions:
-            await add_common_questions(db, total=total_questions - len(commons), difficulty=difficulty)
+            await add_common_questions(db, total=total_questions - len(commons), difficulty=difficulty, language=language)
             common_result = await db.execute(_apply_difficulty(common_query))
             commons = common_result.scalars().all()
         if len(jobs) < total_questions:
-            await add_job_questions(
+            await add_q(
                 db,
                 category_id=category_id,
                 job_role=job_role or "",
                 total=total_questions - len(jobs),
                 difficulty=difficulty,
+                language=language,
             )
             job_result = await db.execute(_apply_difficulty(job_query))
             jobs = job_result.scalars().all()
@@ -209,6 +239,7 @@ async def load_q(
 async def start_interview_session(db, payload: I_StartReq) -> I_StartRes:
     q_type = norm_q_type(payload.question_type)
     total_questions = payload.total_questions or 5
+    language = (payload.language or "ko").lower()
 
     interview_type = {
         "common": InterviewType.COMMON,
@@ -231,6 +262,7 @@ async def start_interview_session(db, payload: I_StartReq) -> I_StartRes:
             total_questions=total_questions,
             difficulty=difficulty,
             job_role=payload.job_role,
+            language=language,
         )
 
         interview = Interview(
@@ -240,6 +272,7 @@ async def start_interview_session(db, payload: I_StartReq) -> I_StartRes:
             total_questions=total_questions,
             current_question=0,
             status=0,
+            language=language,
         )
         db.add(interview)
         await db.flush()
@@ -256,4 +289,4 @@ async def start_interview_session(db, payload: I_StartReq) -> I_StartRes:
                 )
             )
 
-    return I_StartRes(i_id=interview.i_id, questions=questions_out)
+    return I_StartRes(i_id=interview.i_id, questions=questions_out, language=language)
