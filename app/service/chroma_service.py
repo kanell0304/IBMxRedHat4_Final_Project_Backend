@@ -4,7 +4,7 @@ from collections import defaultdict
 from app.core.settings import settings
 from app.database.models.interview import InterviewAnswer, Interview
 from app.infra.chroma_db import collection, get_embedding
-from app.service.stt_metrics import compute_stt_metrics
+from app.service.i_stt_metrics import compute_stt_metrics
 
 # 텍스트를 임베딩하고 ChromaDB에 저장
 # Chroma 메타데이터는 str/int/float/bool만 허용

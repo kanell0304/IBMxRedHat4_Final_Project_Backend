@@ -6,7 +6,7 @@ from app.database.database import get_db
 from app.service.analysis_service import get_analysis_service
 from app.service.i_start_service import start_interview_session
 from app.database.schemas.interview import AnalyzeReq, I_Report, ProcessAnswerResponse, AnswerUploadResponse, I_Create, I_Basic, I_Detail, AnswerCreate, Answer, I_Result, I_StartReq, I_StartRes
-from app.database.crud.interview import create_i, get_i, list_i, create_answer, get_answer, delete_answer, complete_i, list_results, delete_i, save_audio
+from app.database.crud import interview as interview_crud
 
 
 router=APIRouter(prefix="/interview", tags=["interview"])
@@ -77,7 +77,7 @@ async def upload_answer_audio(answer_id: int, file: UploadFile = File(...), db =
 # 인터뷰 생성
 @router.post("", response_model=I_Basic)
 async def create_i(payload: I_Create, db = Depends(get_db)):
-    return await create_i(
+    return await interview_crud.create_i(
         db=db,
         user_id=payload.user_id,
         interview_type=payload.interview_type,
@@ -89,7 +89,7 @@ async def create_i(payload: I_Create, db = Depends(get_db)):
 # 인터뷰 단건 조회
 @router.get("/{i_id}", response_model=I_Detail)
 async def get_i(i_id: int, db = Depends(get_db)):
-    i = await get_i(db, i_id)
+    i = await interview_crud.get_i(db, i_id)
     if not i:
         raise HTTPException(status_code=404, detail="데이터가 없습니다")
     return i
@@ -98,17 +98,17 @@ async def get_i(i_id: int, db = Depends(get_db)):
 # 사용자별 인터뷰 목록
 @router.get("/users/{user_id}/interviews", response_model=list[I_Basic])
 async def list_user_i(user_id: int, db = Depends(get_db)):
-    return await list_i(db, user_id)
+    return await interview_crud.list_i(db, user_id)
 
 
 # 답변 생성/저장
 @router.post("/{i_id}/answers", response_model=Answer)
 async def create_answer_i(i_id: int, payload: AnswerCreate, db = Depends(get_db)):
-    i = await get_i(db, i_id)
+    i = await interview_crud.get_i(db, i_id)
     if not i:
         raise HTTPException(status_code=404, detail="데이터가 없습니다")
 
-    return await create_answer(
+    return await interview_crud.create_answer(
         db=db,
         i_id=i_id,
         q_id=payload.q_id,
@@ -122,7 +122,7 @@ async def create_answer_i(i_id: int, payload: AnswerCreate, db = Depends(get_db)
 # 답변 삭제
 @router.delete("/{i_id}/answers/{answer_id}", status_code=204)
 async def delete_answer_i(i_id: int, answer_id: int, db = Depends(get_db)):
-    deleted = await delete_answer(answer_id, i_id, db)
+    deleted = await interview_crud.delete_answer(answer_id, i_id, db)
     if not deleted:
         raise HTTPException(status_code=404, detail="데이터가 없습니다")
     return Response(status_code=204)
@@ -131,7 +131,7 @@ async def delete_answer_i(i_id: int, answer_id: int, db = Depends(get_db)):
 # 인터뷰 완료 처리
 @router.post("/{i_id}/complete", response_model=I_Basic)
 async def complete_i(i_id: int, db = Depends(get_db)):
-    i = await complete_i(db, i_id)
+    i = await interview_crud.complete_i(db, i_id)
     if not i:
         raise HTTPException(status_code=404, detail="데이터가 없습니다")
     return i
@@ -140,13 +140,13 @@ async def complete_i(i_id: int, db = Depends(get_db)):
 # 인터뷰 결과 조회
 @router.get("/{i_id}/results", response_model=list[I_Result])
 async def get_results(i_id: int, db = Depends(get_db)):
-    return await list_results(db, i_id)
+    return await interview_crud.list_results(db, i_id)
 
 
 # 인터뷰 삭제
 @router.delete("/{i_id}", status_code=204)
 async def delete_i(i_id: int, db = Depends(get_db)):
-    deleted = await delete_i(db, i_id)
+    deleted = await interview_crud.delete_i(db, i_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="데이터가 없습니다")
     return Response(status_code=204)

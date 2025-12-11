@@ -24,6 +24,20 @@ async def get_i(db, i_id: int):
   return result.scalar_one_or_none()
 
 
+async def update_interview(db, i_id: int, current_question: Optional[int] = None, status: Optional[int] = None):
+  interview=await get_i(db, i_id)
+  if not interview:
+    return None
+  if current_question is not None:
+    interview.current_question=current_question
+  if status is not None:
+    interview.status=status
+
+  await db.commit()
+  await db.refresh(interview)
+  return interview
+
+
 async def list_i(db, user_id: int):
   result = await db.execute(
     select(Interview).where(Interview.user_id == user_id).order_by(Interview.created_at.desc())
@@ -53,6 +67,21 @@ async def get_answer(db, answer_id: int):
   result = await db.execute(select(InterviewAnswer).where(InterviewAnswer.i_answer_id == answer_id))
   return result.scalar_one_or_none()
 
+async def update_answer(db, answer_id: int, transcript: Optional[str] = None, labels_json: Optional[dict] = None, stt_metrics_json: Optional[dict] = None):
+  answer = await get_answer(db, answer_id)
+  if not answer:
+    return None
+  
+  if transcript is not None:
+    answer.transcript=transcript
+  if labels_json is not None:
+    answer.labels_json=labels_json
+  if stt_metrics_json is not None:
+    answer.stt_metrics_json=stt_metrics_json
+
+  await db.commit()
+  await db.refresh(answer)
+  return answer
 
 async def delete_answer(answer_id: int, i_id: int, db):
   result = await db.execute(delete(InterviewAnswer).where(InterviewAnswer.i_answer_id == answer_id,InterviewAnswer.i_id == i_id))
@@ -93,3 +122,4 @@ async def save_audio(db, answer: InterviewAnswer, data: bytes, filename: str, du
   await db.commit()
   await db.refresh(answer)
   return answer
+
