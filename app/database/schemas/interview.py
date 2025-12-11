@@ -48,6 +48,7 @@ class I_StartReq(BaseModel):
     job_role: Optional[str] = Field(default=None, description="직무 관련/섞어서 선택 시 필수")
     difficulty: Optional[str] = Field(default=None, description="easy | mid | hard (선택)")
     total_questions: int = Field(default=5, gt=0, description="랜덤으로 선택할 질문 수")
+    language: str = Field(default="ko", description="질문 언어 코드 (예: ko, en)")
 
 
 class I_StartQ(BaseModel):
@@ -61,6 +62,7 @@ class I_StartQ(BaseModel):
 class I_StartRes(BaseModel):
     i_id: int
     questions: List[I_StartQ]
+    language: str = "ko"
 
 
 # 인터뷰 생성
