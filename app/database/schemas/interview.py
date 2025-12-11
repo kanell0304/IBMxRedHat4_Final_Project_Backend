@@ -102,6 +102,9 @@ class AnswerUploadResponse(BaseModel):
     answer_id: int
     audio_format: str
     size: int
+    transcript: Optional[str] = None
+    duration_sec: Optional[int] = None
+    stt_metrics: Optional[Dict[str, Any]] = None
 
 # 인터뷰 시작/질문 관련
 class I_StartReq(BaseModel):

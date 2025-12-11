@@ -1,7 +1,4 @@
-import tempfile
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
-from pydub import AudioSegment
-from app.service.chroma_service import i_process_answer
 from app.database.database import get_db
 from app.service.analysis_service import get_analysis_service
 from app.service.i_start_service import start_interview_session
@@ -10,6 +7,11 @@ from app.database.crud import interview as interview_crud
 from app.service.i_stats_service import compute_interview_stt_metrics
 from app.service.llm_service import OpenAIService
 from app.service.chroma_service import i_process_answer, analyze_weakness_patterns, analyze_speech_style_evolution
+from app.service.audio_service import AudioService
+from app.service.stt_service import STTService
+from app.service.i_stt_metrics import compute_stt_metrics
+from app.service.chroma_service import _extract_transcript
+from app.core.settings import settings
 
 
 router=APIRouter(prefix="/interview", tags=["interview"])
@@ -142,22 +144,31 @@ async def upload_answer_audio(answer_id: int, file: UploadFile = File(...), db =
 
     data = await file.read()
     ext = (file.filename.split(".")[-1] if "." in file.filename else "wav") or "wav"
-    duration_sec = None
-    try:
-        with tempfile.NamedTemporaryFile(suffix=f".{ext}") as tmp:
-            tmp.write(data)
-            tmp.flush()
-            audio = AudioSegment.from_file(tmp.name)
-            duration_sec = int(round(len(audio) / 1000))
-    except Exception:
-        duration_sec = None  # 길이 계산 실패 시 넘어감
 
-    await interview_crud.save_audio(db, answer, data, file.filename, duration_sec)
+    try:
+        wav_data, duration = AudioService.convert_to_wav(data, ext)
+        stt_service = STTService(project_id=settings.google_cloud_project_id)
+        stt_result = await stt_service.transcribe_chirp(wav_data)
+        transcript = _extract_transcript(stt_result)
+        stt_metrics = compute_stt_metrics(stt_result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"STT 처리 중 오류: {e}")
+
+    answer.transcript = transcript
+    answer.duration_sec = int(round(duration)) if duration is not None else None
+    answer.stt_metrics_json = stt_metrics
+    await db.commit()
+    await db.refresh(answer)
 
     return AnswerUploadResponse(
         answer_id=answer_id,
-        audio_format=answer.audio_format or "",
+        audio_format=ext,
         size=len(data),
+        transcript=transcript,
+        duration_sec=answer.duration_sec,
+        stt_metrics=stt_metrics,
     )
 
 

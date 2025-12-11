@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Optional
 from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
@@ -69,7 +68,7 @@ async def get_question(db, q_id: int):
     select(InterviewQuestion).where(InterviewQuestion.q_id==q_id)
   )
 
-  return result.scarlar_one_or_none()
+  return result.scalar_one_or_none()
 
 async def list_question(db, q_type: Optional[QuestionType] = None, category_id: Optional[int] = None, difficulty: Optional[DifficultyLevel]= None, language: Optional[str] = None):
   query=select(InterviewQuestion)
@@ -84,7 +83,7 @@ async def list_question(db, q_type: Optional[QuestionType] = None, category_id: 
     query=query.where(InterviewQuestion.language==language)
 
   result=await db.execute(query.order_by(InterviewQuestion.q_id))
-  return result.scarlars().all()
+  return result.scalars().all()
 
 
 
@@ -159,16 +158,3 @@ async def get_result(db, result_id: int):
 async def list_results(db, i_id: int):
   result = await db.execute(select(InterviewResult).where(InterviewResult.i_id == i_id))
   return result.scalars().all()
-
-
-# save audio
-async def save_audio(db, answer: InterviewAnswer, data: bytes, filename: str, duration_sec: Optional[int] = None):
-  ext = (Path(filename).suffix or ".wav").lstrip(".")
-  answer.audio_data = data
-  answer.audio_format = ext
-  answer.audio_path = None
-  if duration_sec is not None:
-    answer.duration_sec = duration_sec
-  await db.commit()
-  await db.refresh(answer)
-  return answer
