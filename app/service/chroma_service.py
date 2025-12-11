@@ -200,6 +200,7 @@ async def i_process_answer(answer_id: int, db):
     ],
     "label_counts": label_counts,
   }
+  answer.stt_metrics_json=stt_metrics
   await db.commit()
   await db.refresh(answer)
 
