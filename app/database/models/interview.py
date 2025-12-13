@@ -69,7 +69,7 @@ class InterviewAnswer(Base):
   labels_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # BERT 분류 결과 저장
   stt_metrics_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
   created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
-  deleted_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+  deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
   results: Mapped[List["InterviewResult"]] = relationship("InterviewResult", cascade="all, delete-orphan")  # 세부 평가/결과
   interview: Mapped["Interview"] = relationship("Interview", back_populates="answers")  # 인터뷰 역참조
@@ -91,8 +91,9 @@ class InterviewResult(Base):
   i_answer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("i_answers.i_answer_id"), nullable=True)
   
   scope: Mapped[ResultScope] = mapped_column(SQLEnum(ResultScope), nullable=False, default=ResultScope.OVERALL)
-  report_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+  report: Mapped[dict] = mapped_column(JSON, nullable=False)
   created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+  deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
   interview:Mapped["Interview"]=relationship("Interview", back_populates="results")
   answer:Mapped[Optional["InterviewAnswer"]]=relationship("InterviewAnswer", back_populates="results")

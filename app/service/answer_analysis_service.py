@@ -32,6 +32,7 @@ def save_chroma(
     sentences: List[Dict[str, Any]],
     label_counts: Dict[str, int],
     overall_raw_labels: Dict[str, Any],
+    stt_metrics: Optional[Dict[str, Any]] = None,
 ):
 
   # user_id 추가 전 저장된 기존 문서가 있으면 제거하고 덮어쓴다 (answer_id 기준)
@@ -45,6 +46,14 @@ def save_chroma(
   flat_overall = _flatten_labels(overall_raw_labels)
 
 
+  # stt_metrics 평탄화 작업
+  flat_stt: Dict[str, Any]={}
+  if stt_metrics:
+    for key, value in stt_metrics.items():
+      if isinstance(value, (int, float, str, bool)):
+        flat_stt[f"stt_{key}"]=value
+
+
   full_metadata: Dict[str, Any] = {
     "type": "user_answer_full",
     "answer_id": answer_id,
@@ -53,7 +62,8 @@ def save_chroma(
     "user_id": user_id,
     "sentence_total": len(sentences),
     **{f"{k}_count": int(v) for k, v in label_counts.items()},
-    **flat_overall
+    **flat_overall,
+    **flat_stt,
   }
 
   ids: List[str] = [f"user_{user_id}_answer_{answer_id}_full"]
@@ -144,27 +154,10 @@ async def i_process_answer(answer_id: int, db):
   transcript = answer.transcript 
   stt_metrics=answer.stt_metrics_json
 
-  # transcript 없으면 STT 수행
   if not transcript:
-    if getattr(answer, "audio_data", None):
-      audio_bytes = answer.audio_data
-      original_format = answer.audio_format or "wav"
-    elif getattr(answer, "audio_path", None):
-      with open(answer.audio_path, "rb") as f:
-        audio_bytes = f.read()
-      original_format = os.path.splitext(answer.audio_path)[1].lstrip(".") or "wav"
-    else:
-      raise ValueError("audio 데이터가 없어 STT를 수행할 수 없습니다.")
-
-    from app.service.audio_service import AudioService
-    from app.service.stt_service import STTService
-
-    wav_data, _ = AudioService.convert_to_wav(audio_bytes, original_format)  # 포맷 통일
-    stt_service = STTService(project_id=settings.google_cloud_project_id) # Google STT 클라이언트 준비
-    stt_result = await stt_service.transcribe_chirp(wav_data) # STT 호출
-
-    transcript = _extract_transcript(stt_result) # 텍스트만 추출
-    stt_metrics=compute_stt_metrics(stt_result)
+    raise ValueError("transcript가 없습니다.")
+  if not stt_metrics:
+    raise ValueError("stt_metrics가 없습니다.")
 
   sentences = _split_sentences(transcript)
   if not sentences:
@@ -214,6 +207,7 @@ async def i_process_answer(answer_id: int, db):
     sentences=sentence_entries,
     label_counts=label_counts,
     overall_raw_labels=overall_raw,
+    stt_metrics=stt_metrics,
   )
 
   return {

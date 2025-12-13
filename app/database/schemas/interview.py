@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Dict, Any, Optional
 from app.database.models.interview import InterviewType
 from app.database.models.interview import ResultScope
@@ -191,3 +191,12 @@ class I_Result(BaseModel):
 
     class Config:
         from_attributes = True
+        populate_by_name = True
+
+    # DB dict를 I_Report 자동 변환
+    @field_validator('report', mode='before')
+    @classmethod
+    def parse_report(cls, v):
+        if isinstance(v, dict):
+            return I_Report(**v)
+        return v

@@ -152,7 +152,7 @@ async def get_result(db, result_id: int):
   result=await db.execute(
     select(InterviewResult).where(InterviewResult.i_result_id==result_id)
   )
-  return result.scarlar_one_or_none()
+  return result.scalar_one_or_none()
 
 
 async def list_results(db, i_id: int):
