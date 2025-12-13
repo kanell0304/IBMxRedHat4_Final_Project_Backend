@@ -6,11 +6,10 @@ from app.database.schemas.interview import AnalyzeReq, I_Report, ProcessAnswerRe
 from app.database.crud import interview as interview_crud
 from app.service.i_stats_service import compute_interview_stt_metrics
 from app.service.llm_service import OpenAIService
-from app.service.chroma_service import i_process_answer, analyze_weakness_patterns, analyze_speech_style_evolution
+from app.service.answer_analysis_service import i_process_answer, analyze_weakness_patterns, analyze_speech_style_evolution, _extract_transcript
 from app.service.audio_service import AudioService
 from app.service.stt_service import STTService
 from app.service.i_stt_metrics import compute_stt_metrics
-from app.service.chroma_service import _extract_transcript
 from app.core.settings import settings
 
 

@@ -1,6 +1,6 @@
 import asyncio
 from app.database.database import AsyncSessionLocal
-from app.service.chroma_service import (
+from app.service.answer_analysis_service import (
     i_process_answer,
     analyze_weakness_patterns,
     analyze_speech_style_evolution,
