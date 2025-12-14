@@ -24,67 +24,133 @@ async def i_start(payload: I_StartReq, db = Depends(get_db)):
 # 대화 전체 분석
 @router.post("/analyze", response_model=I_Report)
 async def analyze(request:AnalyzeReq, db=Depends(get_db)):
-    interview = await crud.get_i(db, request.i_id)
+    interview=await crud.get_i(db, request.i_id)    
     service=get_analysis_service()
     report=await service.analyze_interview(request.transcript)
-    
-    await crud.create_result(db=db, user_id=interview.user_id, i_id=request.i_id, scope="overall", report_json=report.model_dump())
+
+    await crud.create_result(db=db, user_id=interview.user_id, i_id=request.i_id, scope="overall", report=report.model_dump())
     return report
 
 
 # 인터뷰 전체 종합 분석
 @router.post("/{i_id}/analyze_full", response_model=I_Report)
 async def analyze_interview_full(i_id:int, db=Depends(get_db)):
-    interview = await crud.get_i(db, i_id)
-    answers=interview.answers
+    try:
+        interview=await crud.get_i(db, i_id)
+        if not interview:
+            raise HTTPException(status_code=404, detail="모의면접을 찾을 수 없습니다.")
+        
+        answers=interview.answers
+        if not answers:
+            raise HTTPException(status_code=400, detail="답변이 없습니다.")
+        
+        transcripts=[]
+        bert_labels_list=[]
+        qa_list=[]
 
-    transcripts=[]
-    qa_list=[]
+        for answer in answers:
+            if not answer.transcript:
+                continue
 
-    for answer in answers:
-        if not answer.transcript:
-            continue
-        transcripts.append(answer.transcript)
-        question=await crud.get_question(db, answer.q_id) if answer.q_id else None
-        qa_list.append({
-            "question":question.question_text if question else "",
-            "answer":answer.transcript
-        })
+            transcripts.append(answer.transcript)
+
+            if answer.labels_json:
+                bert_labels_list.append(answer.labels_json.get("overall_labels", {}))
+
+            question=await crud.get_question(db, answer.q_id) if answer.q_id else None
+            qa_list.append({
+                "question":question.question_text if question else "",
+                "answer":answer.transcript,
+                "q_id":answer.q_id,
+                "answer_id":answer.i_answer_id
+            })
+        
+        if not transcripts:
+            raise HTTPException(status_code=400, detail="처리된 답변이 없습니다.")
+        full_transcript=" ".join(transcripts)
+
+        from app.service.i_bert_service import get_inference_service
+        bert_service=get_inference_service()
+        bert_analysis=bert_service.predict_labels(full_transcript)
+
+        stt_metrics=await compute_interview_stt_metrics(i_id, db)
+
+        weakness_patterns=analyze_weakness_patterns(interview.user_id)
+        evolution_insights=analyze_speech_style_evolution(interview.user_id)
+
+        llm_service=OpenAIService()
+        report=await llm_service.generate_report(
+            transcript=full_transcript,
+            bert_analysis=bert_analysis,
+            stt_metrics=stt_metrics,
+            weakness_pattern=weakness_patterns,
+            evolution_insights=evolution_insights,
+            qa_list=qa_list
+        )
+
+        # 전체 결과 저장
+        await crud.create_result(
+            db=db,
+            user_id=interview.user_id,
+            i_id=i_id,
+            scope="overall",
+            report=report.model_dump()
+        )
+
+        # 질문별 개별 결과 저장
+        if report.content_per_question:
+            for per_q in report.content_per_question:
+                q_index=per_q.q_index
+
+                if 0<q_index<=len(qa_list):
+                    qa_item=qa_list[q_index-1]
+                    q_id=qa_item.get("q_id")
+                    answer_id=qa_item.get("answer_id")
+
+                    per_question_report={
+                        "q_index":per_q.q_index,
+                        "q_text":per_q.q_text,
+                        "score":per_q.score,
+                        "comment":per_q.comment,
+                        "suggestion":per_q.suggestion,
+                    }
+
+                    await crud.create_result(
+                        db=db,
+                        user_id=interview.user_id,
+                        i_id=i_id,
+                        scope="per_question",
+                        report=per_question_report,
+                        i_answer_id=answer_id,
+                        q_id=q_id,
+                    )
+
+        await crud.update_interview(db, i_id, status=2)
+
+        return report
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=f"{e}")
     
-    if not transcripts:
-        raise HTTPException(status_code=400, detail="처리된 답변이 없습니다.")
-    full_transcript=" ".join(transcripts)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"분석 중 오류 : {e}")
 
-    from app.service.i_bert_service import get_inference_service
-    bert_service=get_inference_service()
-    bert_analysis=bert_service.predict_labels(full_transcript)
 
-    stt_metrics=await compute_interview_stt_metrics(i_id, db)
+@router.get("/answers/{answer_id}/result", response_model=dict)
+async def get_answer_result(answer_id:int, db=Depends(get_db)):
+    from sqlalchemy import select
+    from app.database.models.interview import InterviewResult
 
-    weakness_patterns=analyze_weakness_patterns(interview.user_id)
-    evolution_insights=analyze_speech_style_evolution(interview.user_id)
-
-    llm_service=OpenAIService()
-    report=await llm_service.generate_report(
-        transcript=full_transcript,
-        bert_analysis=bert_analysis,
-        stt_metrics=stt_metrics,
-        weakness_pattern=weakness_patterns,
-        evolution_insights=evolution_insights,
-        qa_list=qa_list
+    result=await db.execute(
+        select(InterviewResult).where(
+            InterviewResult.i_answer_id==answer_id,
+            InterviewResult.scope=="per_question")
     )
+    per_q_result=result.scalar_one_or_none()
 
-    await crud.create_result(
-        db=db,
-        user_id=interview.user_id,
-        i_id=i_id,
-        scope="overall",
-        report_json=report.model_dump()
-    )
+    if not per_q_result:
+        raise HTTPException(status_code=404, detail="해당 답변의 결과를 찾을 수 없습니다.")
 
-    await crud.update_interview(db, i_id, status=2)
-
-    return report
+    return per_q_result.report
 
 
 # 개별 답변 라벨링/문장 분해 처리
