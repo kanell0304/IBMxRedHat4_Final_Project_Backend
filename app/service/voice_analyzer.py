@@ -24,7 +24,7 @@ class VoiceAnalyzer:
 
     def _load_models(self):
         try:
-            # 감정 분류 모델 로드1
+            # 감정 분류 모델 가중치 로드
             with open(self.model_dir / 'emotion_classifier.pkl', 'rb') as f:
                 self.emotion_model = pickle.load(f)
 
@@ -45,7 +45,6 @@ class VoiceAnalyzer:
             self.wav2vec_model.eval()
             self.sample_rate = bundle.sample_rate
 
-            print("모델 로드 완료")
             print(f"  감정 클래스: {list(self.idx_to_emotion.values())}")
 
         except Exception as e:
@@ -101,13 +100,13 @@ class VoiceAnalyzer:
             pitch_std = np.std(pitch_values) if pitch_values else 0
             pitch_range = (np.max(pitch_values) - np.min(pitch_values)) if pitch_values else 0
 
-            # 침묵 구간 검출
+            # 침묵 구간 검출 - 음성 총 길이에서 목소리가 나는 구간을 뺀 나머지 = 침묵 구간
             intervals = librosa.effects.split(y, top_db=30)
             total_speech_time = sum((end - start) / sr for start, end in intervals)
             silence_duration = duration - total_speech_time
             silence_ratio = silence_duration / duration if duration > 0 else 0
 
-            # 발화 속도
+            # 발화 속도 - 말하기(단어당) 속도
             if estimated_syllables:
                 speech_rate_total = estimated_syllables / duration
                 speech_rate_actual = estimated_syllables / total_speech_time if total_speech_time > 0 else 0
@@ -116,11 +115,11 @@ class VoiceAnalyzer:
                 speech_rate_actual = None
 
             # 기타 특징
-            energy_std = np.std(rms)
-            zcr = librosa.feature.zero_crossing_rate(y)[0]
-            spectral_centroids = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
-            num_segments = len(intervals)
-            avg_segment_length = total_speech_time / num_segments if num_segments > 0 else 0
+            energy_std = np.std(rms) # 에너지 표준편차
+            zcr = librosa.feature.zero_crossing_rate(y)[0] # 영교차율 -> 쉽게 말해서 음성의 파형이 0을 기준으로 얼마나 많이 왔다갔다 하는지 -> 발음이 얼마나 명확한지
+            spectral_centroids = librosa.feature.spectral_centroid(y=y, sr=sr)[0] # 목소리가 얼마나 밝은지 정도
+            num_segments = len(intervals) # 얼마나 말을 잘 끊어서 말했는지
+            avg_segment_length = total_speech_time / num_segments if num_segments > 0 else 0 # 평균 세그먼트 길이
 
             return {
                 'duration': float(duration),

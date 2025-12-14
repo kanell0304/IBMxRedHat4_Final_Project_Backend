@@ -44,10 +44,8 @@ async def analyze_presentation(pr_id: int, audio_file: UploadFile = File(...), e
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
-        print(f"\n=== 분석 오류 발생 ===")
         print(f"Error: {str(e)}")
         print(f"Traceback:\n{error_trace}")
-        print(f"====================\n")
         raise HTTPException(status_code=500, detail=str(e))
 
     finally:
