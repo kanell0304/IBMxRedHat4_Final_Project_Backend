@@ -161,6 +161,7 @@ class AnswerCreate(BaseModel):
     duration_sec: Optional[int] = Field(default=None, ge=0)
     transcript: Optional[str] = None
     labels_json: Optional[Dict[str, Any]] = None
+    stt_metrics_json: Optional[Dict[str, Any]] = None
 
 
 # 답변 응답

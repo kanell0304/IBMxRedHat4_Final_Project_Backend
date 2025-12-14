@@ -133,12 +133,12 @@ async def delete_answer(answer_id: int, i_id: int, db):
 
 
 # mock interview result
-async def create_result(db, user_id: int, i_id: int, scope: str, report_json: dict, i_answer_id: Optional[int] = None, q_id: Optional[int] = None):
+async def create_result(db, user_id: int, i_id: int, scope: str, report: dict, i_answer_id: Optional[int] = None, q_id: Optional[int] = None):
   result=InterviewResult(
     user_id=user_id,
     i_id=i_id,
     scope=scope,
-    report_json=report_json,
+    report=report,
     i_answer_id=i_answer_id,
     q_id=q_id
   )
