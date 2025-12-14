@@ -54,7 +54,7 @@ class EmailService:
                         </div>
                     </div>
                     <div class="footer">
-                        <p>본 이메일은 'Spageti' 에서 자동으로 발송되었습니다.</p>
+                        <p>본 이메일은 'Spaghetti' 에서 자동으로 발송되었습니다.</p>
                         <p>문의사항이 있으시면 {self.gmail_user}로 연락주세요.</p>
                     </div>
                 </div>
@@ -67,7 +67,7 @@ class EmailService:
         try:
             # MIME 메시지 생성
             msg = MIMEMultipart('alternative')
-            msg['Subject'] = "[Online Voting/Survey Platform] 비밀번호 재설정 인증코드"
+            msg['Subject'] = "[Spaghetti] 비밀번호 재설정 인증코드"
             msg['From'] = self.gmail_user
             msg['To'] = recipient_email
 
