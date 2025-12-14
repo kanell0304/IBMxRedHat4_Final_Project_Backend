@@ -25,11 +25,11 @@ class UserLogin(BaseModel):
     password: str
 
 class UserResponse(UserBase):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     user_id: int
     phone_number: Optional[str] = None
-    profile_image: Optional[int] = None
+    profile_image_id: Optional[int] = Field(default=None, alias="profile_image_id")
     created_at: datetime
 
 class Token(BaseModel):
@@ -78,7 +78,7 @@ class UserReadWithProfile(UserResponse):
             nickname=user.nickname,
             phone_number=user.phone_number,
             created_at=user.created_at,
-            profile_image=user.profile_image,
+            profile_image_id=user.profile_image_id,
             profile_image_url=profile_url
         )
         
