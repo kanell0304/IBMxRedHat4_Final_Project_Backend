@@ -81,7 +81,7 @@ async def analyze_interview_full(i_id:int, db=Depends(get_db)):
                 "question":question.question_text if question else "",
                 "answer":answer.transcript,
                 "q_id":answer.q_id,
-                "answer_id":answer.i_answer__id
+                "answer_id":answer.i_answer_id
             })
         
         if not transcripts:
@@ -113,7 +113,7 @@ async def analyze_interview_full(i_id:int, db=Depends(get_db)):
             user_id=interview.user_id,
             i_id=i_id,
             scope="overall",
-            report_json=report.model_dump()
+            report=report.model_dump()
         )
 
         # 질문별 개별 결과 저장
