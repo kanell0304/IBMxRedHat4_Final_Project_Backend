@@ -101,8 +101,8 @@ def save_chroma(
   )
 
 
-# STT로 받은 값 데이터에서 transcript만 모아 한 문장으로 합침
-def _extract_transcript(stt_result: Dict[str, Any]) -> str:
+# STT 결과에서 transcript만 모아 한 문장으로 합침
+def extract_transcript(stt_result: Dict[str, Any]) -> str:
   transcripts: List[str] = []
   for item in stt_result.get("results", []):
     for alt in item.get("alternatives", []):

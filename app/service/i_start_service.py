@@ -289,7 +289,7 @@ async def load_q(db, question_type: str, category_id: Optional[int], total_quest
     return selected
 
 
-async def start_interview_session(db, payload: I_StartReq) -> I_StartRes:
+async def i_start_session(db, payload: I_StartReq) -> I_StartRes:
     q_type = norm_q_type(payload.question_type)
     total_questions = payload.total_questions or 5
     language = (payload.language or "ko").lower()
