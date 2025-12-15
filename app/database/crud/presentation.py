@@ -127,3 +127,19 @@ class PresentationCRUD:
         )
 
         return result.scalar_one_or_none() # 조회된 결과들을 반환
+
+    # 특정 사용자의 모든 발표 조회(상세 정보를 포함한)
+    @staticmethod
+    async def get_presentations_by_user_id(db: AsyncSession, user_id: int) -> list[Presentation]:
+        result = await db.execute(
+            select(Presentation)
+            .options(
+                selectinload(Presentation.voice_files),
+                selectinload(Presentation.results),
+                selectinload(Presentation.feedbacks)
+            )
+            .filter(Presentation.user_id == user_id)
+            .order_by(Presentation.created_at.desc())  # 생성일 기준 최신순 정렬
+        )
+
+        return result.scalars().all()

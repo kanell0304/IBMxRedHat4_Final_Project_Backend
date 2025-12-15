@@ -101,3 +101,64 @@ async def get_presentation(pr_id: int, db: AsyncSession = Depends(get_db)):
             ]
         }
     }
+
+
+# 특정 사용자의 모든 발표 조회
+@router.get("/user/{user_id}")
+async def get_user_presentations(user_id: int, db: AsyncSession = Depends(get_db)):
+    presentations = await PresentationCRUD.get_presentations_by_user_id(db, user_id)
+
+    if not presentations:
+        return {"success": True, "data": []}
+
+    return {
+        "success": True,
+        "data": [
+            {
+                "pr_id": p.pr_id,
+                "title": p.title,
+                "description": p.description,
+                "target_duration": p.target_duration,
+                "status": p.status,
+                "created_at": p.created_at.isoformat(),
+                "results_count": len(p.results),
+                "feedbacks_count": len(p.feedbacks),
+                "results": [
+                    {
+                        "result_id": r.result_id,
+                        "duration_min": float(r.duration_min) if r.duration_min else 0.0,
+                        "avg_volume_db": float(r.avg_volume_db) if r.avg_volume_db else 0.0,
+                        "avg_pitch": float(r.avg_pitch) if r.avg_pitch else 0.0,
+                        "silence_ratio": float(r.silence_ratio) if r.silence_ratio else 0.0,
+                        "speech_rate": float(r.speech_rate_actual or r.speech_rate_total or 0),
+                        "emotion": "Anxious" if (r.anxiety_ratio or 0) > (
+                                    r.embarrassment_ratio or 0) else "Embarrassed",
+                        "emotion_confidence": float(max(r.anxiety_ratio or 0, r.embarrassment_ratio or 0)),
+                        "analyzed_at": r.analyzed_at.isoformat()
+                    }
+                    for r in p.results
+                ],
+                "feedbacks": [
+                    {
+                        "feedback_id": f.feedback_id,
+                        "brief": f.brief_feedback or "",
+                        "detailed_summary": f.detailed_summary or "",
+                        "detailed_strengths": f.detailed_strengths or "",
+                        "detailed_improvements": f.detailed_improvements or "",
+                        "detailed_advice": f.detailed_advice or "",
+                        "scores": {
+                            "volume": int(f.volume_score) if f.volume_score else 0,
+                            "pitch": int(f.pitch_score) if f.pitch_score else 0,
+                            "speed": int(f.speed_score) if f.speed_score else 0,
+                            "silence": int(f.silence_score) if f.silence_score else 0,
+                            "clarity": int(f.clarity_score) if f.clarity_score else 0,
+                            "overall": int(f.overall_score) if f.overall_score else 0
+                        },
+                        "created_at": f.created_at.isoformat()
+                    }
+                    for f in p.feedbacks
+                ]
+            }
+            for p in presentations
+        ]
+    }
