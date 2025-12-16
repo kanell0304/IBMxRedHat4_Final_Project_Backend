@@ -94,7 +94,7 @@ async def get_posts(category_id: Optional[int] = Query(None), page: int = Query(
         }
     }
 
-# 게시글 상세 조회 (조회수 증가) - 게시글 상세 조회 -> 게시글 클릭 -> 조회수 증가
+# 게시글 상세 조회 (조회수 증가)
 @router.get("/posts/{post_id}", response_model=dict)
 async def get_post(post_id: int, user_id: Optional[int] = Query(None), db: AsyncSession = Depends(get_db)):
     post = await CommunityCRUD.get_post_by_id(db, post_id, increment_view=True)
