@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 # 대화분석 파트 스키마
@@ -90,6 +90,21 @@ class AnalysisResultResponse(BaseModel):
     summary: str
     advice: str
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CommunicationDetailResponse(BaseModel):
+    c_id: int
+    user_id: int
+    status: str
+    created_at: datetime
+    voice_files: List[VoiceFileResponse]
+    stt_results: List[STTResultResponse]
+    script_sentences: List[CScriptSentenceResponse]
+    bert_result: Optional[BERTResultResponse]
+    result: Optional[AnalysisResultResponse]
 
     class Config:
         from_attributes = True

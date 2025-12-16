@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.database import get_db
 from app.database.crud import communication as crud
-from app.database.schemas.communication import CommunicationResponse, VoiceFileResponse, STTResultResponse, AnalysisResultResponse 
+from app.database.schemas.communication import CommunicationResponse, VoiceFileResponse, STTResultResponse, AnalysisResultResponse, CommunicationDetailResponse
 from app.service.audio_service import AudioService
 from app.service.stt_service import STTService
 from app.service.c_analysis_service import get_c_analysis_service
@@ -81,7 +81,10 @@ async def analyze_communication(
     if not stt_result:
         raise HTTPException(status_code=404, detail="STT result not found")
 
-    # 3. 분석 서비스 호출
+    # 3. 재실행 대비 기존 분석 결과 삭제
+    await crud.delete_analysis_results_by_c_id(db, c_id)
+
+    # 4. 분석 서비스 호출
     analysis_service = get_c_analysis_service()
 
     try:
@@ -97,12 +100,12 @@ async def analyze_communication(
     bert_result = analysis_result["bert_result"]
     llm_result = analysis_result["llm_result"]
 
-    # 4. 문장 리스트 저장 (c_script_sentences)
+    # 5. 문장 리스트 저장 (c_script_sentences)
     await crud.create_script_sentences(
         db=db, c_id=c_id, c_sr_id=stt_result.c_sr_id, sentences=sentences
     )
 
-    # 5. BERT 결과 저장 (c_bert_results)
+    # 6. BERT 결과 저장 (c_bert_results)
     curse_count = bert_result.get("curse", 0)
     filler_count = bert_result.get("filler", 0)
     standard_score = (
@@ -122,7 +125,7 @@ async def analyze_communication(
         analyzed_segments=bert_result,
     )
 
-    # 6. 최종 결과 저장 (c_results)
+    # 7. 최종 결과 저장 (c_results)
     # JSON 데이터 준비 (detected_examples가 비어있으면 null)
     def prepare_json(metric_data):
         if not metric_data or not isinstance(metric_data, dict):
@@ -160,6 +163,14 @@ async def analyze_communication(
     return final_result
 
 
+@router.get("/{c_id}", response_model=CommunicationDetailResponse)
+async def get_communication_detail(c_id: int, db: AsyncSession = Depends(get_db)):
+    communication = await crud.get_communication_with_details(db, c_id)
+    if not communication:
+        raise HTTPException(status_code=404, detail="Communication not found")
+    return communication
+
+
 @router.get("/users/{user_id}/communications", response_model=list[CommunicationResponse])
 async def list_user_communications(user_id: int, db: AsyncSession = Depends(get_db)):
     communications = await crud.get_communications_by_user_id(db, user_id)
@@ -170,6 +181,16 @@ async def list_user_communications(user_id: int, db: AsyncSession = Depends(get_
 async def list_all_communications(db: AsyncSession = Depends(get_db)):
     communications = await crud.get_all_communications(db)
     return communications
+
+
+@router.delete("/{c_id}")
+async def delete_communication(c_id: int, db: AsyncSession = Depends(get_db)):
+    communication = await crud.get_communication_by_id(db, c_id)
+    if not communication:
+        raise HTTPException(status_code=404, detail="Communication not found")
+
+    await crud.delete_communication_by_c_id(db, c_id)
+    return {"message": "Communication deleted successfully"}
 
 
 @router.get("/health")

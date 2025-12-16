@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
+from sqlalchemy.orm import selectinload
 from ..models.communication import (
     Communication,
     CVoiceFile,
@@ -23,6 +24,21 @@ async def create_communication(db: AsyncSession, user_id: int) -> Communication:
 async def get_communication_by_id(db: AsyncSession, c_id: int) -> Optional[Communication]:
     result = await db.execute(
         select(Communication).where(Communication.c_id == c_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_communication_with_details(db: AsyncSession, c_id: int) -> Optional[Communication]:
+    result = await db.execute(
+        select(Communication)
+        .where(Communication.c_id == c_id)
+        .options(
+            selectinload(Communication.voice_files),
+            selectinload(Communication.stt_results),
+            selectinload(Communication.script_sentences),
+            selectinload(Communication.bert_result),
+            selectinload(Communication.result)
+        )
     )
     return result.scalar_one_or_none()
 
@@ -185,3 +201,20 @@ async def create_result(
     await db.commit()
     await db.refresh(result)
     return result
+
+
+async def delete_analysis_results_by_c_id(db: AsyncSession, c_id: int):
+    await db.execute(delete(CResult).where(CResult.c_id == c_id))
+    await db.execute(delete(CBERTResult).where(CBERTResult.c_id == c_id))
+    await db.execute(delete(CScriptSentence).where(CScriptSentence.c_id == c_id))
+    await db.commit()
+
+
+async def delete_communication_by_c_id(db: AsyncSession, c_id: int):
+    await db.execute(delete(CResult).where(CResult.c_id == c_id))
+    await db.execute(delete(CBERTResult).where(CBERTResult.c_id == c_id))
+    await db.execute(delete(CScriptSentence).where(CScriptSentence.c_id == c_id))
+    await db.execute(delete(CSTTResult).where(CSTTResult.c_id == c_id))
+    await db.execute(delete(CVoiceFile).where(CVoiceFile.c_id == c_id))
+    await db.execute(delete(Communication).where(Communication.c_id == c_id))
+    await db.commit()
