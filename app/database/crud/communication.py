@@ -27,6 +27,22 @@ async def get_communication_by_id(db: AsyncSession, c_id: int) -> Optional[Commu
     return result.scalar_one_or_none()
 
 
+async def get_communications_by_user_id(db: AsyncSession, user_id: int) -> List[Communication]:
+    result = await db.execute(
+        select(Communication)
+        .where(Communication.user_id == user_id)
+        .order_by(Communication.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def get_all_communications(db: AsyncSession) -> List[Communication]:
+    result = await db.execute(
+        select(Communication).order_by(Communication.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
 async def create_voice_file(db: AsyncSession, c_id: int, filename: str, original_format: str, data: bytes, duration: Optional[float]) -> CVoiceFile:
     voice_file = CVoiceFile(
         c_id=c_id,

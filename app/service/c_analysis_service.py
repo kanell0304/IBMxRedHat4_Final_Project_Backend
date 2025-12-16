@@ -1,7 +1,6 @@
 from typing import Dict
 from app.service.c_bert_service import get_inference_service
-from app.service.llm.openai_service import OpenAIService
-from app.service.llm.watsonx_service import WatsonxService
+from app.service.llm_service import OpenAIService
 from app.service.script_parser import get_script_parser
 from app.core.settings import settings
 
@@ -16,8 +15,6 @@ class CAnalysisService:
     def get_llm_service(self):
         if settings.llm_provider == "openai":
             return OpenAIService()
-        elif settings.llm_provider == "watsonx":
-            return WatsonxService()
         else:
             raise ValueError(f"지원하지 않는 LLM_PROVIDER : {settings.llm_provider}")
 

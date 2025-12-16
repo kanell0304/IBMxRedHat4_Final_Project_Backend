@@ -47,7 +47,7 @@ class AudioService:
 
         except FileNotFoundError as e:
             raise RuntimeError(
-                "ffmpeg를 설치하세요: https://ffmpeg.org/download.html"
+                "ffmpeg 오류"
             )
         except Exception as e:
             raise RuntimeError(f"오디오 변환 중 오류 발생: {str(e)}")

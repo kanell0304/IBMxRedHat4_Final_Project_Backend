@@ -160,9 +160,20 @@ async def analyze_communication(
     return final_result
 
 
+@router.get("/users/{user_id}/communications", response_model=list[CommunicationResponse])
+async def list_user_communications(user_id: int, db: AsyncSession = Depends(get_db)):
+    communications = await crud.get_communications_by_user_id(db, user_id)
+    return communications
+
+
+@router.get("", response_model=list[CommunicationResponse])
+async def list_all_communications(db: AsyncSession = Depends(get_db)):
+    communications = await crud.get_all_communications(db)
+    return communications
+
+
 @router.get("/health")
 async def stt_health_check():
-    """STT 서비스 상태 확인"""
     try:
         project_id = settings.google_cloud_project_id
         return {
