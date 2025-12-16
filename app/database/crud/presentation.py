@@ -143,3 +143,16 @@ class PresentationCRUD:
         )
 
         return result.scalars().all()
+
+    # 특정 발표 삭제
+    @staticmethod
+    async def delete_presentation_by_pr_id(db: AsyncSession, pr_id: int) -> bool:
+        result = await db.execute(select(Presentation).where(Presentation.pr_id == pr_id))
+
+        db_result = result.scalar_one_or_none()
+        if db_result is not None:
+            await db.delete(db_result)
+            await db.commit()
+
+            return True
+        return False
