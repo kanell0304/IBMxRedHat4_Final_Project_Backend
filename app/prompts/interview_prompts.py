@@ -1,13 +1,13 @@
 from typing import Dict, Optional
 
 
-
 def build_prompt(
         transcript:str, 
         bert_analysis:Dict,
         stt_metrics:Optional[Dict]=None,
         weakness_patterns:Optional[Dict]=None,
         evolution_insights:Optional[Dict]=None,
+        qa_list:Optional[list[dict]]=None,
         )->str:
 
     # BERT 결과
@@ -29,19 +29,21 @@ def build_prompt(
 - 낮은 신뢰도 단어 비율 : {stt_metrics.get('avg_low_conf_ratio', 0)}
 """
         
-        weakness_summary=""
-        if weakness_patterns:
-            weakness_summary=f"""
+    weakness_summary=""
+    if weakness_patterns:
+        weakness_summary=f"""
 [장기 약점 패턴 분석]
 - 반복적으로 나타나는 약점 라벨 : {weakness_patterns.get('weak_labels', [])}
 - 문제가 자주 발생한 질문 번호 : {weakness_patterns.get('weak_questions', [])}
 - 요약 : {weakness_patterns.get('pattern_summary', '')}
 """
         
-        evolution_summary=""
-        if evolution_insights:
-            improvement=evolution_insights.get("improvement", {})
-            evolution_summary=f"""
+    evolution_summary=""
+    if evolution_insights:
+        improvement=evolution_insights.get("improvement", {})
+        evolution_summary=f"""
+
+
 [말하기 스타일 변화 추세]
 - 타임라인 : {evolution_insights.get('timeline', [])}
 - 변화 방향 : {improvement.get('direction')}
@@ -49,6 +51,17 @@ def build_prompt(
 - 시작 점수 → 현재 점수 : {improvement.get('from')} → {improvement.get('to')}
 - 요약 : {improvement.get('summary')}
 """
+
+    qa_block=""
+    if qa_list:
+        qa_lines=[]
+        for idx, item in enumerate(qa_list, start=1):
+            q=item.get("question", "")
+            a=item.get("answer", "")
+            qa_lines.append(f"Q{idx}. {q}\nA{idx}. {a}\n")
+        qa_block="\n[질문별 Q/A 목록]\n"+"\n".join(qa_lines)
+
+
 
     prompt=f"""
 당신은 모의면접 코칭 전문가입니다.
@@ -58,6 +71,9 @@ def build_prompt(
 [면접 답변 텍스트]
 {transcript}
 
+
+[질문별 Q/A 목록]
+{qa_block}
 
 
 [BERT 멀티라벨 분석 결과]
@@ -69,10 +85,11 @@ def build_prompt(
 
 [요구사항]
 1. 먼저 이번 면접 답변 자체에 대한 평가를 작성하세요. (논리, 전달력, 표현, 말투 등)
-2. BERT 결과와 STT 메트릭을 활용하여 구체적인 개선 포인트를 제시하세요.
-3. Chroma 기반 장기 패턴(약점, 변화 추세)이 제공된 경우,
+2. 각 질문에 대해, 지원자의 답변이 질문 의도에 얼마나 적합한지 '내용 측면'에서 평가하세요.
+3. BERT 결과와 STT 메트릭을 활용하여 구체적인 개선 포인트를 제시하세요.
+4. Chroma 기반 장기 패턴(약점, 변화 추세)이 제공된 경우,
     "이 사용자는 평소에 어떤 경향이 있는지"까지 함꼐 설명하세요.
-4. 전체 요약, 구체적인 문제점, 개선 방법, 연습 방향을 섹션별로 나누어 JSON 포맷으로 반환하세요.
+5. 전체 요약, 구체적인 문제점, 개선 방법, 연습 방향을 섹션별로 나누어 JSON 포맷으로 반환하세요.
 
 
 [분석 가이드]
@@ -126,6 +143,12 @@ def build_prompt(
     - JSON 이외의 다른 텍스트는 절대 출력하지 마세요.
     - JSON 필드명, 계층 구조, 자료형을 반드시 지키세요,
 
+추가로 'content' 영역에 대해 아래 형식으로 평가하세요.
+- content.overall.score : 전체 답변의 내용 적절성(0~100)
+- content.overall.strengths : 내용적으로 잘한 점
+- content.overall.weaknesses : 내용적으로 부족한 점
+- content.overall.summary : 한 문단 요약
+- content.per_question[*] : 각 질문별 내용 평가
 
     
 [출력 형식]
@@ -165,7 +188,24 @@ def build_prompt(
             {{"original": "<원문>", "revised": "<수정안>"}}
         ]
     }},
-    "overall_comment": "<전반적인 총평을 10문장 이내로 작성>"
+    "content_overall":{{
+    "score": <0~100 정수>,
+    "strengths": ["<내용적으로 잘한 점1>", "<내용적으로 잘한 점2>"],
+    "weaknesses": ["<내용적으로 부족한 점1>", "<내용적으로 부족한 점2>"],
+    "summary": "<내용 측면 요약>",
+    }},
+
+    "content_per_question":[
+        {{
+        "q_index": 1,
+        "q_text": "<질문 텍스트>",
+        "score": <0~100 정수>,
+        "comment": "<이 답변이 왜 적절/부적절했는지 내용 중심 설명>",
+        "suggestion": "<어떻게 말하면 더 좋았을지>",
+        }}
+    ],
+
+    "overall_comment":"<전체적인 총평을 10문장 이내로 작성>"
 
 }}
 """.strip()

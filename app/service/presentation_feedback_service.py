@@ -1,5 +1,5 @@
 from typing import Dict
-from .llm.openai_service import OpenAIService
+from .llm_service import OpenAIService
 from ..prompts.presentation_prompts import build_brief_prompt, build_detailed_prompt
 
 

@@ -126,7 +126,7 @@ class UserService:
         # 6자리 인증코드 생성
         reset_code = UserCrud.generate_reset_code()
 
-        # DB에 코드 저장 (유효기간 15분)
+        # DB에 코드 저장 (토큰의 유효기간은 15분)
         await UserCrud.save_reset_code(db, user.user_id, reset_code, expires_minutes=15)
         await db.commit()
 
@@ -148,11 +148,11 @@ class UserService:
             raise HTTPException(status_code=400, detail="인증코드가 유효하지 않거나 만료되었습니다.")
 
         try:
-            # 비밀번호 해시화 및 업데이트
+            # 비밀번호 해시화 및 비밀번호 변경
             hashed_password = hash_password(new_password)
             await UserCrud.update_user(db, user.user_id, hashed_password=hashed_password)
 
-            # 인증코드 초기화
+            # 인증코드 초기화(null로 변경)
             await UserCrud.clear_reset_code(db, user.user_id)
 
             await db.commit()

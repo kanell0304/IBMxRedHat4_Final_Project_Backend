@@ -14,7 +14,7 @@ class PresentationScorer:
         elif value > max_val:
             return max(0, int(50 * (max_val / value)))
         else:
-            # ideal에 가까울수록 100점
+            # ideal(이상적인 수치)에 가까울수록 100점
             distance = abs(value - ideal)
             range_width = max_val - min_val
             score = 100 - int((distance / range_width) * 100)

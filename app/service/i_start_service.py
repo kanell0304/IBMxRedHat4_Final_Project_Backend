@@ -5,6 +5,9 @@ from app.database.crud.category import create_jobcategory
 from app.database.models.category import JobCategory
 from app.database.models.interview import Interview, InterviewAnswer, InterviewQuestion, InterviewType, QuestionType, DifficultyLevel
 from app.database.schemas.interview import I_StartReq, I_StartRes, I_StartQ
+from app.core.settings import settings
+from openai import AsyncOpenAI
+import json
 
 
 QUESTION_TYPE_ALIAS = {
@@ -12,6 +15,8 @@ QUESTION_TYPE_ALIAS = {
     "직무관련": "job",
     "섞어서": "mixed",
 }
+
+LLM_JOB_CATEGORIES = {"백엔드개발"}
 
 
 def norm_q_type(question_type: str) -> str:
@@ -24,6 +29,13 @@ def norm_q_type(question_type: str) -> str:
         return lowered
 
     raise ValueError("question_type은 common | job | mixed 중 하나여야 합니다.")
+
+
+def is_llm_job(job_role: Optional[str]) -> bool:
+    if not job_role:
+        return False
+    lowered = job_role.strip().lower()
+    return lowered in LLM_JOB_CATEGORIES
 
 
 def norm_diff(difficulty: Optional[str]) -> Optional[DifficultyLevel]:
@@ -94,6 +106,47 @@ def job_questions(job_role: str, language: str) -> List[str]:
         f"{role} 업무에서 실패하거나 어려웠던 사례를 공유하고, 배운 점을 설명해주세요.",
     ]
 
+
+async def job_selection_llm(total: int, difficulty: Optional[DifficultyLevel], language: str) -> List[str]:
+    if not settings.openai_api_key:
+        raise ValueError("API 키가 설정 안됨")
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    target_total = max(1, total)
+    max_len = 30
+    diff_text = {DifficultyLevel.EASY: "easy", DifficultyLevel.MID: "mid", DifficultyLevel.HARD: "hard", None: "mixed"}.get(difficulty, "mixed")
+    prompt = f"Generate {target_total} backend interview questions in {language}. Max {max_len} characters per question. No numbering. Difficulty: {diff_text}. Return JSON array of strings."
+    try:
+        resp = await client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": "You create very short interview questions."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+        )
+        content = resp.choices[0].message.content or "[]"
+        questions = json.loads(content)
+        if not isinstance(questions, list):
+            raise ValueError("LLM 응답이 리스트 형식이 아닙니다.")
+    except Exception as e:
+        raise ValueError(f"백엔드 질문 생성 실패: {e}")
+
+    cleaned: List[str] = []
+    seen = set()
+    for q in questions:
+        text = str(q).strip().strip('"').strip("'")
+        if not text or text in seen:
+            continue
+        if len(text) > max_len:
+            text = text[:max_len]
+        cleaned.append(text)
+        seen.add(text)
+        if len(cleaned) >= target_total:
+            break
+
+    if len(cleaned) < target_total:
+        raise ValueError("충분한 백엔드 질문을 생성하지 못했습니다.")
+    return cleaned
 
 async def add_common_questions(db, total: int, difficulty: Optional[DifficultyLevel], language: str):
     created: List[InterviewQuestion] = []
@@ -236,7 +289,7 @@ async def load_q(db, question_type: str, category_id: Optional[int], total_quest
     return selected
 
 
-async def start_interview_session(db, payload: I_StartReq) -> I_StartRes:
+async def i_start_session(db, payload: I_StartReq) -> I_StartRes:
     q_type = norm_q_type(payload.question_type)
     total_questions = payload.total_questions or 5
     language = (payload.language or "ko").lower()
@@ -255,15 +308,26 @@ async def start_interview_session(db, payload: I_StartReq) -> I_StartRes:
         # 공통질문만 선택 시 난이도는 무시
         difficulty = None if q_type == "common" else norm_diff(payload.difficulty)
 
-        questions = await load_q(
-            db,
-            question_type=q_type,
-            category_id=category.job_category_id if category else None,
-            total_questions=total_questions,
-            difficulty=difficulty,
-            job_role=payload.job_role,
-            language=language,
-        )
+        use_backend_llm = q_type == "job" and is_llm_job(payload.job_role)
+
+        if use_backend_llm:
+            # 백엔드 직무는 LLM으로 즉석 생성
+            q_texts = await job_selection_llm(total_questions, difficulty, language)
+            questions: List[InterviewQuestion] = []
+            for text in q_texts:
+                q = InterviewQuestion(
+                    category_id=category.job_category_id if category else None,
+                    question_type=QuestionType.JOB,
+                    difficulty=difficulty,
+                    question_text=text,
+                    language=language,
+                )
+                db.add(q)
+                questions.append(q)
+            await db.flush()
+        else:
+            cat_id = category.job_category_id if category else None
+            questions = await load_q(db, q_type, cat_id, total_questions, difficulty, payload.job_role, language)
 
         interview = Interview(
             user_id=payload.user_id,

@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from app.service.kakao_oauth import kakao_login_or_signup
 load_dotenv()
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie
+from fastapi import UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.database import get_db
 from app.database.schemas.user import UserCreate, UserResponse, UserLogin, UserUpdate, Token, UserBase, KakaoLoginResponse, KakaoCallbackRequest, ForgotPasswordRequest, ResetPasswordWithCode, UserReadWithProfile
@@ -213,3 +214,24 @@ async def forgot_password(request: ForgotPasswordRequest,  db: AsyncSession = De
 @router.post("/reset-password", summary="비밀번호 재설정 (인증코드)")
 async def reset_password_with_code(request: ResetPasswordWithCode,  db: AsyncSession = Depends(get_db)):
     return await UserService.reset_password_with_code(db, request.email, request.reset_code, request.new_password)
+
+
+# 프로필 이미지 업로드/변경
+@router.post("/me/profile-image", response_model=UserReadWithProfile)
+async def upload_profile_image(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+):
+    user = await UserService.update_profile_image(file, db, current_user.user_id)
+    return UserReadWithProfile.from_user(user, base_url="")
+
+
+# 프로필 이미지 삭제
+@router.delete("/me/profile-image", response_model=UserReadWithProfile)
+async def delete_profile_image(
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+):
+    user = await UserService.delete_profile_image(db, current_user.user_id)
+    return UserReadWithProfile.from_user(user, base_url="")

@@ -1,7 +1,7 @@
 from sqlalchemy import Integer, String, DateTime, ForeignKey, Index, func
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.database import Base
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class User(Base):
@@ -26,6 +26,11 @@ class User(Base):
     # presentations: Mapped[List["Presentation"]] = relationship("Presentation", back_populates="user", cascade="all, delete-orphan")
     communications: Mapped[list["Communication"]] = relationship("Communication", back_populates="user", cascade="all, delete-orphan")
     profile_image: Mapped[Optional["Image"]] = relationship("Image", foreign_keys=[profile_image_id])
+    
+    # 커뮤니티 관계
+    community_posts: Mapped[List["CommunityPost"]] = relationship("CommunityPost", back_populates="user", cascade="all, delete-orphan")
+    community_comments: Mapped[List["CommunityComment"]] = relationship("CommunityComment", back_populates="user", cascade="all, delete-orphan")
+    community_likes: Mapped[List["CommunityPostLike"]] = relationship("CommunityPostLike", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index('idx_email', 'email'),  # 로그인 시 이메일로 사용자 조회
