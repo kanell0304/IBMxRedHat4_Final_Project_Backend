@@ -6,6 +6,31 @@ from app.database.models.interview import InterviewAnswer, Interview
 from app.infra.chroma_db import collection, get_embedding
 from app.service.i_stt_metrics import compute_stt_metrics
 
+
+# 여러 답변의 BERT labels 집계하여 interview 대표 라벨 산출
+def aggregate_bert_labels(labels_list: List[Dict[str, int]])->Dict[str, Dict[str, Any]]:
+    if not labels_list:
+        return {}
+    
+    label_keys=labels_list[0].keys()
+    aggregated={}
+
+    for key in label_keys:
+        values=[labels.get(key, 0) for labels in labels_list]
+        count_ones=sum(values)
+
+        avg_score=count_ones/len(values)
+
+        final_label=1 if count_ones>len(values)/2 else 0
+
+        aggregated[key]={
+            "score":avg_score,
+            "label":final_label,
+        }
+
+    return aggregated
+
+
 # 텍스트를 임베딩하고 ChromaDB에 저장
 # Chroma 메타데이터는 str/int/float/bool만 허용
 def _flatten_labels(labels: Dict[str, Any]) -> Dict[str, Any]:

@@ -5,17 +5,8 @@ from typing import Optional, List
 from ..database.database import get_db
 from ..database.crud.community import CommunityCRUD
 from ..database.models.community import CommunityComment
-from ..database.schemas.community import (
-    CommunityCategoryCreate,
-    CommunityCategoryResponse,
-    CommunityPostCreate,
-    CommunityPostUpdate,
-    CommunityPostResponse,
-    CommunityPostListResponse,
-    CommunityCommentCreate,
-    CommunityCommentUpdate,
-    CommunityCommentResponse
-)
+from ..database.schemas.community import (CommunityCategoryCreate, CommunityCategoryResponse, CommunityPostCreate, CommunityPostUpdate, CommunityPostResponse, CommunityPostListResponse, CommunityCommentCreate, CommunityCommentUpdate, CommunityCommentResponse)
+from fastapi import APIRouter, Depends, HTTPException, status, Cookie
 
 router = APIRouter(prefix="/community", tags=["Community"])
 
@@ -94,10 +85,10 @@ async def get_posts(category_id: Optional[int] = Query(None), page: int = Query(
         }
     }
 
-# 게시글 상세 조회 (조회수 증가) - 게시글 상세 조회 -> 게시글 클릭 -> 조회수 증가
+# 게시글 상세 조회 (조회수 증가)
 @router.get("/posts/{post_id}", response_model=dict)
-async def get_post(post_id: int, user_id: Optional[int] = Query(None), db: AsyncSession = Depends(get_db)):
-    post = await CommunityCRUD.get_post_by_id(db, post_id, increment_view=True)
+async def get_post(post_id: int, user_id: Optional[int] = Query(None), increment_view: bool = Query(True), db: AsyncSession = Depends(get_db)):
+    post = await CommunityCRUD.get_post_by_id(db, post_id, increment_view=increment_view)
     
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")

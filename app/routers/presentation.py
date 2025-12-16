@@ -162,3 +162,12 @@ async def get_user_presentations(user_id: int, db: AsyncSession = Depends(get_db
             for p in presentations
         ]
     }
+
+@router.delete("/{pr_id}")
+async def delete_presentation(pr_id: int, db: AsyncSession = Depends(get_db)):
+    presentation = await PresentationCRUD.delete_presentation_by_pr_id(db, pr_id)
+
+    if not presentation:
+        return {"msg": "존재하지 않는 pr_id 입니다."}
+
+    return {"msg": f"삭제에 성공했습니다. 삭제된 pr_id: {pr_id}"}
