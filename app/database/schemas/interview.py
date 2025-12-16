@@ -106,6 +106,17 @@ class AnswerUploadResponse(BaseModel):
     duration_sec: Optional[int] = None
     stt_metrics: Optional[Dict[str, Any]] = None
 
+class AnswerUploadProcessResponse(BaseModel):
+    answer_id: int
+    audio_format: str
+    size: int
+    transcript: Optional[str] = None
+    duration_sec: Optional[int] = None
+    stt_metrics: Optional[Dict[str, Any]] = None
+    bert_analysis: Optional[Dict[str, Any]] = None
+    sentences: Optional[List[Dict[str, Any]]] = None
+    label_counts: Optional[Dict[str, int]] = None
+
 # 인터뷰 시작/질문 관련
 class I_StartReq(BaseModel):
     user_id: int
@@ -168,12 +179,10 @@ class AnswerCreate(BaseModel):
 class Answer(BaseModel):
     i_answer_id: int
     i_id: int
-    q_id: Optional[int] = None
-    q_order: Optional[int] = None
-    duration_sec: Optional[int] = None
-    transcript: Optional[str] = None
-    labels_json: Optional[Dict[str, Any]] = None
+    q_id: int
+    q_order: int
     created_at: datetime
+    
     class Config:
         from_attributes = True
 

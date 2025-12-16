@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Respons
 from app.database.database import get_db
 from app.service.analysis_service import get_analysis_service
 from app.service.i_start_service import i_start_session
-from app.database.schemas.interview import AnalyzeReq, I_Report, ProcessAnswerResponse, AnswerUploadResponse, I_Create, I_Basic, I_Detail, AnswerCreate, Answer, I_Result, I_StartReq, I_StartRes
+from app.database.schemas.interview import AnalyzeReq, I_Report, ProcessAnswerResponse, AnswerUploadResponse, I_Create, I_Basic, I_Detail, AnswerCreate, Answer, I_Result, I_StartReq, I_StartRes, AnswerUploadProcessResponse
 from app.database.crud import interview as crud
 from app.service.i_stats_service import compute_interview_stt_metrics
 from app.service.llm_service import OpenAIService
-from app.service.answer_analysis_service import i_process_answer, analyze_weakness_patterns, analyze_speech_style_evolution, extract_transcript
+from app.service.answer_analysis_service import i_process_answer, analyze_weakness_patterns, analyze_speech_style_evolution, extract_transcript, aggregate_bert_labels
 from app.service.audio_service import AudioService
 from app.service.stt_service import STTService
 from app.service.i_stt_metrics import compute_stt_metrics
@@ -69,9 +69,7 @@ async def analyze_interview_full(i_id:int, db=Depends(get_db)):
             raise HTTPException(status_code=400, detail="처리된 답변이 없습니다.")
         full_transcript=" ".join(transcripts)
 
-        from app.service.i_bert_service import get_inference_service
-        bert_service=get_inference_service()
-        bert_analysis=bert_service.predict_labels(full_transcript)
+        bert_analysis=aggregate_bert_labels(bert_labels_list)
 
         stt_metrics=await compute_interview_stt_metrics(i_id, db)
 
@@ -188,6 +186,46 @@ async def upload_answer_audio(answer_id: int, file: UploadFile = File(...), db =
         stt_metrics=stt_metrics,
     )
 
+# 답변 오디오 업로드 + BERT 분석 통합
+@router.post("/answers/{answer_id}/upload_process", response_model=AnswerUploadProcessResponse)
+async def upload_process_answer_audio(answer_id:int, file:UploadFile=File(...), db=Depends(get_db)):
+    answer=await crud.get_answer(db, answer_id)
+
+    data=await file.read()
+    ext=(file.filename.split(".")[-1] if "." in file.filename else "wav") or "wav"
+
+    # STT 처리
+    wav_data, duration=AudioService.convert_to_wav(data, ext)
+    stt_service=STTService(project_id=settings.google_cloud_project_id)
+    stt_result=await stt_service.transcribe_chirp(wav_data)
+    transcript=extract_transcript(stt_result)
+    stt_metrics=compute_stt_metrics(stt_result)
+
+    # DB 저장
+    answer.transcript=transcript
+    answer.duration_sec=int(round(duration)) if duration is not None else None
+    answer.stt_metrics_json=stt_metrics
+    await db.commit()
+    await db.refresh(answer)
+
+    # process
+    process_result=await i_process_answer(answer_id, db)
+
+    # 통합 응답 반환
+    return AnswerUploadProcessResponse(
+        answer_id=answer_id,
+        audio_format=ext,
+        size=len(data),
+        transcript=process_result["transcript"],
+        duration_sec=answer.duration_sec,
+        stt_metrics=process_result["stt_metrics"],
+        bert_analysis={
+            "labels": answer.labels_json.get("overall_labels", {}),
+            "scores": {}
+        },
+        sentences=process_result["sentences"],
+        label_counts=process_result["label_counts"],
+    )
 
 # 인터뷰 생성
 @router.post("", response_model=I_Basic)
@@ -223,9 +261,6 @@ async def create_answer_i(i_id: int, payload: AnswerCreate, db = Depends(get_db)
         i_id=i_id,
         q_id=payload.q_id,
         q_order=payload.q_order,
-        duration_sec=payload.duration_sec,
-        transcript=payload.transcript,
-        labels_json=payload.labels_json,
     )
 
 

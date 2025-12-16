@@ -89,16 +89,11 @@ async def list_question(db, q_type: Optional[QuestionType] = None, category_id: 
 
 # mock interview answer
 async def create_answer(
-  db, i_id: int, q_id: Optional[int], q_order: Optional[int],
-  duration_sec: Optional[int], transcript: Optional[str], labels_json: Optional[dict]):
-
+  db, i_id: int, q_id: int, q_order: int):
   answer = InterviewAnswer(
     i_id=i_id,
     q_id=q_id,
     q_order=q_order,
-    duration_sec=duration_sec,
-    transcript=transcript,
-    labels_json=labels_json,
   )
   db.add(answer)
   await db.commit()
