@@ -2,11 +2,36 @@ from pydub import AudioSegment
 from io import BytesIO
 from typing import Tuple
 import os
+import platform
 
-# wav외 다른 포맷들 처리하려면 ffmpeg 다운받아야 된다고 해서 다운받고 경로 설정했는데도 오류납니다 
-# 일단 wav만 넣어서 테스트해주세요
 
-AudioSegment.converter = r"C:\ffmpeg-2025-12-01-git-7043522fe0-full_build\ffmpeg-2025-12-01-git-7043522fe0-full_build\bin"
+# 환경에 따라 ffmpeg 경로 자동 설정
+def setup_ffmpeg():
+    system = platform.system()
+
+    # 로컬 Windows 환경
+    if system == "Windows":
+        ffmpeg_path = r"C:\ffmpeg\bin\ffmpeg.exe" # ffmpeg 실행파일 경로
+        ffprobe_path = r"C:\ffmpeg\bin\ffprobe.exe"
+
+        if os.path.exists(ffmpeg_path):
+            AudioSegment.converter = ffmpeg_path
+            AudioSegment.ffmpeg = ffmpeg_path
+            AudioSegment.ffprobe = ffprobe_path
+            print(f"ffmpeg 경로 설정 완료: {ffmpeg_path}")
+        else:
+            print("Warning: Windows ffmpeg 경로를 찾을 수 없습니다.")
+
+    # EC2/Docker 환경 - PATH에서 자동으로 찾음
+    # apt-get install ffmpeg로 설치되면 /usr/bin/ffmpeg에 위치
+    # 별도 경로 설정 불필요
+    elif system == "Linux":
+        print("Linux 환경 감지: ffmpeg PATH 사용")
+
+
+# 모듈 로드 시 자동 실행
+setup_ffmpeg()
+
 
 class AudioService:
     @staticmethod
@@ -47,7 +72,9 @@ class AudioService:
 
         except FileNotFoundError as e:
             raise RuntimeError(
-                "ffmpeg 오류"
+                "ffmpeg를 찾을 수 없습니다. "
+                "Windows: C:\\ffmpeg\\bin\\ffmpeg.exe 확인, "
+                "Linux: apt-get install ffmpeg 실행"
             )
         except Exception as e:
             raise RuntimeError(f"오디오 변환 중 오류 발생: {str(e)}")
