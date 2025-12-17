@@ -13,7 +13,8 @@ class CAnalysisService:
         self.script_parser = get_script_parser()  # script parser 가져옴
 
     def get_llm_service(self):
-        if settings.llm_provider == "openai":
+        provider = settings.llm_provider or "openai"
+        if provider == "openai":
             return OpenAIService()
         else:
             raise ValueError(f"지원하지 않는 LLM_PROVIDER : {settings.llm_provider}")
