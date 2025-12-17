@@ -168,6 +168,34 @@ async def get_communication_detail(c_id: int, db: AsyncSession = Depends(get_db)
     communication = await crud.get_communication_with_details(db, c_id)
     if not communication:
         raise HTTPException(status_code=404, detail="Communication not found")
+
+    # detected_examples의 sentence_index를 실제 문장으로 변환
+    if communication.result and communication.script_sentences:
+        # sentence_index -> text 매핑 생성
+        sentence_map = {s.sentence_index: s.text for s in communication.script_sentences}
+
+        # 각 JSON 필드의 detected_examples 변환
+        json_fields = ['speed_json', 'speech_rate_json', 'silence_json',
+                       'clarity_json', 'meaning_clarity_json', 'cut_json']
+
+        for field_name in json_fields:
+            json_data = getattr(communication.result, field_name, None)
+            if json_data and isinstance(json_data, dict):
+                detected = json_data.get('detected_examples', [])
+                if detected:
+                    # sentence_index를 문장 텍스트로 변환
+                    json_data['detected_examples'] = [
+                        sentence_map.get(idx, f"문장 {idx}") for idx in detected
+                    ]
+
+                # revised_examples의 original 필드도 변환
+                revised = json_data.get('revised_examples', [])
+                if revised:
+                    for example in revised:
+                        if isinstance(example, dict) and 'original' in example:
+                            original_idx = example['original']
+                            example['original'] = sentence_map.get(original_idx, f"문장 {original_idx}")
+
     return communication
 
 

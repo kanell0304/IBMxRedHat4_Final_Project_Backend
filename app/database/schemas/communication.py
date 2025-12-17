@@ -25,6 +25,7 @@ class STTResultResponse(BaseModel):
     c_sr_id: int
     c_id: int
     c_vf_id: int
+    json_data: dict
     created_at: datetime
 
     class Config:
