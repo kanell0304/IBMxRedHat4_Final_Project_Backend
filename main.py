@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import voice_analysis, user, interview, jobs, image, presentation, communication, community
+from app.routers import voice_analysis, user, interview, jobs, image, presentation, communication, community, minigame
 from contextlib import asynccontextmanager
 from app.database.database import create_tables
 
@@ -13,6 +13,20 @@ async def lifespan(app: FastAPI):
         create_tables()
     except Exception as e:
         print(f"테이블 생성 실패: {e}")
+
+    # 미니게임 기본 데이터 초기화 추가
+    try:
+        from app.utils.init_minigame_data import init_default_sentences
+        from app.database.database import get_db_session
+
+        db = next(get_db_session())
+        try:
+            init_default_sentences(db)
+            print("미니게임 기본 문제 초기화 완료")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"미니게임 데이터 초기화 실패: {e}")
 
     # 1. 모델 파일 확인 (로컬 우선, 없으면 S3)
     try:
@@ -42,10 +56,8 @@ app = FastAPI(title="Team Project API", description="음성 분석 API", version
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",  # 프론트엔드 개발 서버
+        "http://localhost:5173",
         "http://127.0.0.1:5173",
-        # 프로덕션 환경이 있다면 여기에 추가
-        # "https://yourdomain.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -59,7 +71,9 @@ app.include_router(interview.router)
 app.include_router(jobs.router)
 app.include_router(presentation.router)
 app.include_router(user.router)
-app.include_router(voice_analysis.router) # 테스트 용으로 일단 연결해둠
+app.include_router(voice_analysis.router)
+app.include_router(minigame.router)
+
 
 @app.get("/")
 async def root():
@@ -68,13 +82,13 @@ async def root():
         "version": "1.0.0",
         "endpoints": {
             "voice_analysis": "/voice/analyze",
+            "minigame": "/api/minigame",  # 추가
             "health_check": "/voice/health",
             "docs": "/docs"
         }
     }
 
-# 서버 구동 상태 확인
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
-
