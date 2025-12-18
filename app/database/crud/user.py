@@ -5,6 +5,7 @@ from typing import Optional, List
 from datetime import datetime, timedelta
 import random
 import string
+import re
 
 class UserCrud:
 
@@ -186,9 +187,20 @@ class UserCrud:
     @staticmethod
     async def get_user_by_credentials(db: AsyncSession, email: str, username: str, phone_number: str) -> Optional[User]:
 
-        result = await db.execute(select(User).where(User.email == email, User.username == username, User.phone_number == phone_number)) # 이메일, 이름, 전화번호가 모두 일치하는 유저 조회
+        result = await db.execute(select(User).where(User.email == email, User.username == username))
+        user = result.scalar_one_or_none()
 
-        return result.scalar_one_or_none()
+        if not user:
+            return None
+
+        def normalize(number: str) -> str:
+            return re.sub(r'\D', '', number or '')
+
+        # 전화번호 비교 시 하이픈/공백 등 포맷을 제거해 일치 여부를 판단
+        if normalize(user.phone_number) == normalize(phone_number):
+            return user
+
+        return None
 
 
     # 6자리 인증코드 생성

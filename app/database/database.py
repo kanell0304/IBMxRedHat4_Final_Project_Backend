@@ -43,11 +43,13 @@ def create_tables():
         from .models import presentation
         from .models import audio
         from .models import interview
+        from .models import community
 
         Base.metadata.create_all(bind=sync_engine)
 
         # 기본 공통 질문
         from app.database.models.interview import InterviewQuestion, QuestionType
+        from app.database.models.community import CommunityCategory
         default_common_questions = {
             "ko": [
                 "자기소개를 해주세요.",
@@ -92,6 +94,25 @@ def create_tables():
                         total_seeded += 1
                 session.commit()
                 print(f"기본 공통 질문 {total_seeded}건 추가")
+
+        # 기본 커뮤니티 카테고리
+        default_categories = [
+            {"name": "자유게시판", "description": "자유롭게 소통하는 공간"},
+            {"name": "말투 상담소", "description": "말투와 커뮤니케이션을 상담하는 공간"},
+            {"name": "취업·진로", "description": "면접 경험을 공유하는 공간"},
+            {"name": "연애 상담소", "description": "연애 고민을 나누는 공간"},
+        ]
+
+        with Session(sync_engine) as session:
+            created = 0
+            for item in default_categories:
+                exists = session.query(CommunityCategory).filter_by(category_name=item["name"]).first()
+                if not exists:
+                    session.add(CommunityCategory(category_name=item["name"], description=item["description"]))
+                    created += 1
+            if created:
+                session.commit()
+                print(f"기본 커뮤니티 카테고리 {created}건 추가")
 
         print("데이터베이스 테이블 생성")
         
