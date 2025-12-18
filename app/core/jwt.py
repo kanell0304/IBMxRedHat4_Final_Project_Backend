@@ -24,4 +24,8 @@ def verify_access_token(token: str):
     try:
         return jwt.decode(token, settings.secret_key, algorithms=settings.jwt_algo)
     except (ExpiredSignatureError, JWTError) as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials (JWT오류)", headers={"WWW-Authenticate": "Bearer"},)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials (JWT오류)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )

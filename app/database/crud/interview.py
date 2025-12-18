@@ -57,9 +57,15 @@ async def complete_i(db, i_id: int):
 
 
 async def delete_i(db, i_id: int):
-  result = await db.execute(delete(Interview).where(Interview.i_id == i_id))
-  await db.commit()
-  return result.rowcount > 0
+  try:
+    await db.execute(delete(InterviewResult).where(InterviewResult.i_id == i_id))
+    await db.execute(delete(InterviewAnswer).where(InterviewAnswer.i_id == i_id))
+    result = await db.execute(delete(Interview).where(Interview.i_id == i_id))
+    await db.commit()
+    return result.rowcount > 0
+  except Exception:
+    await db.rollback()
+    raise
 
 
 # mock interview question

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 # 대화분석 파트 스키마
@@ -25,6 +25,7 @@ class STTResultResponse(BaseModel):
     c_sr_id: int
     c_id: int
     c_vf_id: int
+    json_data: dict
     created_at: datetime
 
     class Config:
@@ -36,6 +37,75 @@ class CommunicationResponse(BaseModel):
     user_id: int
     status: str
     created_at: datetime
-    
+
+    class Config:
+        from_attributes = True
+
+
+class BERTResultResponse(BaseModel):
+    c_br_id: int
+    c_id: int
+    c_sr_id: int
+    target_speaker: str
+    curse_count: int
+    filler_count: int
+    standard_score: Optional[float]
+    analyzed_segments: Optional[dict]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CScriptSentenceResponse(BaseModel):
+    c_ss_id: int
+    c_id: int
+    c_sr_id: int
+    sentence_index: int
+    speaker_label: str
+    text: str
+    start_time: Optional[str]
+    end_time: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AnalysisResultResponse(BaseModel):
+    c_result_id: int
+    c_id: int
+    c_br_id: int
+    speed: float
+    speech_rate: float
+    silence: float
+    clarity: float
+    meaning_clarity: float
+    cut: int
+    speed_json: Optional[dict]
+    speech_rate_json: Optional[dict]
+    silence_json: Optional[dict]
+    clarity_json: Optional[dict]
+    meaning_clarity_json: Optional[dict]
+    cut_json: Optional[dict]
+    summary: str
+    advice: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CommunicationDetailResponse(BaseModel):
+    c_id: int
+    user_id: int
+    status: str
+    created_at: datetime
+    voice_files: List[VoiceFileResponse]
+    stt_results: List[STTResultResponse]
+    script_sentences: List[CScriptSentenceResponse]
+    bert_result: Optional[BERTResultResponse]
+    result: Optional[AnalysisResultResponse]
+
     class Config:
         from_attributes = True

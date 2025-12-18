@@ -3,14 +3,10 @@ sqlalchemy
 greenlet>=3.0
 pydantic-settings>=2.0,<3
 pydantic>=2.7,<3
-email-validator==2.1.1
 fastapi==0.115.5
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 aiofiles==23.2.1
-passlib==1.7.4
-bcrypt==4.0.1
-python-jose[cryptography]==3.3.0
 boto3==1.34.156
 alembic==1.13.1
 asyncmy==0.2.9
@@ -28,3 +24,7 @@ sentence-transformers==2.7.0
 httpx==0.27.0
 chromadb==0.5.11
 openai==1.10.0
+passlib==1.7.4
+python-jose[cryptography]==3.5.0
+bcrypt==4.3.0
+email-validator==2.3.0

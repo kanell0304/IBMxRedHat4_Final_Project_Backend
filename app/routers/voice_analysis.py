@@ -9,6 +9,7 @@ os.environ["PATH"] = r"C:\ffmpeg\bin" + os.pathsep + os.environ.get("PATH", "")
 
 from pydub import AudioSegment
 
+from ..service.audio_service import AudioService
 from ..service.voice_analyzer import get_analyzer
 
 router = APIRouter(prefix="/voice", tags=["voice-analysis"])
@@ -22,47 +23,45 @@ async def analyze_voice(audio_file: UploadFile = File(..., description="음성 �
     if file_extension not in supported_formats:
         raise HTTPException(status_code=400, detail=f"Unsupported file format. Supported formats: {', '.join(supported_formats)}")
 
-    temp_input_file = None
     temp_wav_file = None
 
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp:
-            contents = await audio_file.read()
-            tmp.write(contents)
-            temp_input_file = tmp.name
+        # 업로드된 파일을 메모리에서 읽기
+        audio_data = await audio_file.read()
 
-        if file_extension != '.wav':
-            temp_wav_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav').name
+        # AudioService로 메모리에서 wav로 변환 (빠름!)
+        wav_data, duration = AudioService.convert_to_wav(audio_data, file_extension)
 
-            audio = AudioSegment.from_file(temp_input_file)
-            audio = audio.set_channels(1)
-            audio = audio.set_frame_rate(16000)
-            audio.export(temp_wav_file, format="wav")
+        # 분석을 위해 변환된 wav만 임시 파일로 저장
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
+            tmp.write(wav_data)
+            temp_wav_file = tmp.name
 
-            analysis_file = temp_wav_file
-        else:
-            analysis_file = temp_input_file
-
+        # 음성 분석 실행
         analyzer = get_analyzer()
-        result = analyzer.analyze(audio_path=analysis_file, estimated_syllables=estimated_syllables)
+        result = analyzer.analyze(audio_path=temp_wav_file, estimated_syllables=estimated_syllables)
 
         if "error" in result:
             raise HTTPException(status_code=500, detail=f"Analysis failed: {result['error']}")
+
+        # duration도 활용 가능
+        result['duration'] = duration  # 추가 정보
 
         return JSONResponse(content={"success": True, "data": result})
 
     except HTTPException:
         raise
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
     finally:
-        for temp_file in [temp_input_file, temp_wav_file]:
-            if temp_file and os.path.exists(temp_file):
-                try:
-                    os.unlink(temp_file)
-                except:
-                    pass
+        if temp_wav_file and os.path.exists(temp_wav_file):
+            try:
+                os.unlink(temp_wav_file)
+            except Exception:
+                pass
 
 # 서버 상태 확인
 @router.get("/health")
