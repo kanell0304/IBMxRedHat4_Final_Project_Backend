@@ -196,17 +196,31 @@ class I_Result(BaseModel):
     i_result_id: int
     i_id: int
     scope: ResultScope
-    report: I_Report
+    report: I_Report | PerQuestionContent | Dict[str, Any]
     created_at: datetime
 
     class Config:
         from_attributes = True
         populate_by_name = True
 
-    # DB dict를 I_Report 자동 변환
     @field_validator('report', mode='before')
     @classmethod
     def parse_report(cls, v):
-        if isinstance(v, dict):
-            return I_Report(**v)
+        if not isinstance(v, dict):
+            return v
+
+        # report 구조로 타입 판단
+        if 'q_index' in v and 'q_text' in v:
+            try:
+                return PerQuestionContent(**v)
+            except Exception:
+                pass
+
+        if 'non_standard' in v or 'filler_words' in v:
+            try:
+                return I_Report(**v)
+            except Exception:
+                pass
+
+        # 파싱 실패 시 dict 그대로 반환
         return v
