@@ -66,6 +66,7 @@ class CScriptSentenceResponse(BaseModel):
     text: str
     start_time: Optional[str]
     end_time: Optional[str]
+    feedback: Optional[List[dict]]
     created_at: datetime
 
     class Config:
@@ -76,14 +77,12 @@ class AnalysisResultResponse(BaseModel):
     c_result_id: int
     c_id: int
     c_br_id: int
-    speed: float
-    speech_rate: float
+    speaking_speed: float
     silence: float
     clarity: float
     meaning_clarity: float
     cut: int
-    speed_json: Optional[dict]
-    speech_rate_json: Optional[dict]
+    speaking_speed_json: Optional[dict]
     silence_json: Optional[dict]
     clarity_json: Optional[dict]
     meaning_clarity_json: Optional[dict]

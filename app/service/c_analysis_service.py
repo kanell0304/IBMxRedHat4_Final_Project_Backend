@@ -70,8 +70,8 @@ class CAnalysisService:
         from app.prompts.communication_prompts import build_prompt, SYSTEM_MESSAGE
         import json
 
-        # sentences와 stt_data 모두 전달 (단어 단위 타임스탬프 분석용)
-        prompt = build_prompt(sentences, stt_data, bert_result, target_speaker)
+        # sentences, stt_data, bert_result 모두 전달
+        prompt = build_prompt(sentences, stt_data, target_speaker, bert_result)
 
         # OpenAI 호출
         if isinstance(self.llm_service, OpenAIService):

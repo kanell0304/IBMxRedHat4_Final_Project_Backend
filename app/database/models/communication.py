@@ -76,9 +76,10 @@ class CScriptSentence(Base):
 
     sentence_index: Mapped[int] = mapped_column(Integer, nullable=False)  # 스크립트 내 순서 (0부터)
     speaker_label: Mapped[str] = mapped_column(String(20), nullable=False)  # "0", "1", "2" ...
-    text: Mapped[str] = mapped_column(Text, nullable=False)  
-    start_time: Mapped[Optional[str]] = mapped_column(String(20), nullable=True) 
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    start_time: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     end_time: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    feedback: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # 문장별 피드백 [{category: '...', message: '...'}]
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
     communication: Mapped["Communication"] = relationship("Communication", back_populates="script_sentences")
@@ -115,17 +116,15 @@ class CResult(Base):
     c_br_id: Mapped[int] = mapped_column(Integer, ForeignKey('c_bert_results.c_br_id', ondelete='CASCADE'), nullable=False, unique=True)
 
     # 점수들
-    speed: Mapped[float] = mapped_column(Float, nullable=False)
-    speech_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    speaking_speed: Mapped[float] = mapped_column(Float, nullable=False)
     silence: Mapped[float] = mapped_column(Float, nullable=False)
     clarity: Mapped[float] = mapped_column(Float, nullable=False)
     meaning_clarity: Mapped[float] = mapped_column(Float, nullable=False)
     cut: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # detected_examples, reason, improvement, revised_examples 저장하는 JSON 컬럼 
+    # detected_examples, reason, improvement 저장하는 JSON 컬럼
     # 내용 없으면 null로 저장
-    speed_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    speech_rate_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    speaking_speed_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     silence_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     clarity_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     meaning_clarity_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)

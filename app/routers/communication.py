@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.database import get_db
 from app.database.crud import communication as crud
@@ -100,7 +101,23 @@ async def analyze_communication(
     bert_result = analysis_result["bert_result"]
     llm_result = analysis_result["llm_result"]
 
-    # 5. 문장 리스트 저장 (c_script_sentences)
+    # 5. sentence_feedbacks 매핑 (문장별 피드백 추가)
+    sentence_feedbacks_map = {}
+    if "sentence_feedbacks" in llm_result:
+        for item in llm_result["sentence_feedbacks"]:
+            sentence_idx = item["sentence_index"]
+            feedbacks = item.get("feedbacks", [])
+            sentence_feedbacks_map[sentence_idx] = feedbacks
+
+    # 각 문장에 feedback 추가
+    for sentence in sentences:
+        idx = sentence["sentence_index"]
+        if idx in sentence_feedbacks_map:
+            sentence["feedback"] = sentence_feedbacks_map[idx]
+        else:
+            sentence["feedback"] = None
+
+    # 6. 문장 리스트 저장 (c_script_sentences)
     await crud.create_script_sentences(
         db=db, c_id=c_id, c_sr_id=stt_result.c_sr_id, sentences=sentences
     )
@@ -137,21 +154,18 @@ async def analyze_communication(
             "detected_examples": detected,
             "reason": metric_data.get("reason", ""),
             "improvement": metric_data.get("improvement", ""),
-            "revised_examples": metric_data.get("revised_examples", []),
         }
 
     final_result = await crud.create_result(
         db=db,
         c_id=c_id,
         c_br_id=bert_db_result.c_br_id,
-        speed=llm_result.get("speed", {}).get("score", 0.0),
-        speech_rate=llm_result.get("speech_rate", {}).get("score", 0.0),
+        speaking_speed=llm_result.get("speaking_speed", {}).get("score", 0.0),
         silence=llm_result.get("silence", {}).get("score", 0.0),
         clarity=llm_result.get("clarity", {}).get("score", 0.0),
         meaning_clarity=llm_result.get("meaning_clarity", {}).get("score", 0.0),
         cut=llm_result.get("cut", {}).get("score", 0),
-        speed_json=prepare_json(llm_result.get("speed")),
-        speech_rate_json=prepare_json(llm_result.get("speech_rate")),
+        speaking_speed_json=prepare_json(llm_result.get("speaking_speed")),
         silence_json=prepare_json(llm_result.get("silence")),
         clarity_json=prepare_json(llm_result.get("clarity")),
         meaning_clarity_json=prepare_json(llm_result.get("meaning_clarity")),
@@ -175,7 +189,7 @@ async def get_communication_detail(c_id: int, db: AsyncSession = Depends(get_db)
         sentence_map = {s.sentence_index: s.text for s in communication.script_sentences}
 
         # 각 JSON 필드의 detected_examples 변환
-        json_fields = ['speed_json', 'speech_rate_json', 'silence_json',
+        json_fields = ['speaking_speed_json', 'silence_json',
                        'clarity_json', 'meaning_clarity_json', 'cut_json']
 
         for field_name in json_fields:
@@ -187,14 +201,6 @@ async def get_communication_detail(c_id: int, db: AsyncSession = Depends(get_db)
                     json_data['detected_examples'] = [
                         sentence_map.get(idx, f"문장 {idx}") for idx in detected
                     ]
-
-                # revised_examples의 original 필드도 변환
-                revised = json_data.get('revised_examples', [])
-                if revised:
-                    for example in revised:
-                        if isinstance(example, dict) and 'original' in example:
-                            original_idx = example['original']
-                            example['original'] = sentence_map.get(original_idx, f"문장 {original_idx}")
 
     return communication
 
@@ -219,6 +225,23 @@ async def delete_communication(c_id: int, db: AsyncSession = Depends(get_db)):
 
     await crud.delete_communication_by_c_id(db, c_id)
     return {"message": "Communication deleted successfully"}
+
+
+@router.get("/{c_id}/audio")
+async def get_audio_file(c_id: int, db: AsyncSession = Depends(get_db)):
+    voice_file = await crud.get_voice_file_by_c_id(db, c_id)
+    if not voice_file:
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    # WAV 파일로 반환
+    return Response(
+        content=voice_file.data,
+        media_type="audio/wav",
+        headers={
+            "Content-Disposition": f"inline; filename={voice_file.filename}",
+            "Accept-Ranges": "bytes"
+        }
+    )
 
 
 @router.get("/health")
