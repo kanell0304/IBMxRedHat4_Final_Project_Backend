@@ -44,6 +44,7 @@ def create_tables():
         from .models import audio
         from .models import interview
         from .models import community
+        from .models import minigame
 
         Base.metadata.create_all(bind=sync_engine)
 
@@ -118,3 +119,8 @@ def create_tables():
         
     except Exception as e:
         print(f"테이블 생성 실패: {e}")
+
+
+def get_db_session():
+    with Session(sync_engine) as session:
+        yield session

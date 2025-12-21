@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, BackgroundTasks
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from ..database.database import get_db
 from ..database.models.minigame import MiniGameSentence
 from ..service.minigame_session import session_manager, GameMode
@@ -9,6 +10,7 @@ from ..service.stt_service import STTService
 from ..core.settings import settings
 from typing import Optional
 import random
+import asyncio
 
 router = APIRouter(prefix="/api/minigame", tags=["minigame"])
 
@@ -27,7 +29,12 @@ def flatten_transcript(stt_json: dict) -> str:
 
 
 @router.post("/start")
-async def start_game(difficulty: str = Form(...), mode: str = Form(...), target_count: Optional[int] = Form(None), time_limit: Optional[int] = Form(None),):
+async def start_game(
+    difficulty: str = Form(...), 
+    mode: str = Form(...), 
+    target_count: Optional[int] = Form(None), 
+    time_limit: Optional[int] = Form(None)
+):
     if difficulty not in ["easy", "medium", "hard"]:
         raise HTTPException(status_code=400, detail="Invalid difficulty")
 
@@ -54,22 +61,23 @@ async def start_game(difficulty: str = Form(...), mode: str = Form(...), target_
 
 
 @router.get("/sentence/{session_id}")
-async def get_next_sentence(session_id: str, db: Session = Depends(get_db)):
+async def get_next_sentence(session_id: str, db: AsyncSession = Depends(get_db)):
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    query = db.query(MiniGameSentence).filter(
+    stmt = select(MiniGameSentence).where(
         MiniGameSentence.difficulty == session.difficulty,
-        ~MiniGameSentence.id.in_(session.used_sentence_ids)
+        ~MiniGameSentence.id.in_(session.used_sentence_ids) if session.used_sentence_ids else True
     )
+    
+    result = await db.execute(stmt)
+    sentences = result.scalars().all()
 
-    remaining_count = query.count()
-    if remaining_count == 0:
+    if not sentences:
         raise HTTPException(status_code=404, detail="No more sentences available")
 
-    random_offset = random.randint(0, remaining_count - 1)
-    sentence = query.offset(random_offset).first()
+    sentence = random.choice(sentences)
 
     session_manager.set_current_sentence(session_id, sentence.id)
     session_manager.add_used_sentence(session_id, sentence.id)
@@ -82,26 +90,37 @@ async def get_next_sentence(session_id: str, db: Session = Depends(get_db)):
     }
 
 
-async def process_audio_background(session_id: str, audio_bytes: bytes, file_format: str, sentence_text: str):
+def process_audio_background(
+    session_id: str, 
+    audio_bytes: bytes, 
+    file_format: str, 
+    sentence_text: str
+):
     try:
         wav_data, _ = audio_service.convert_to_wav(audio_bytes, file_format)
-
-        stt_json = await stt_service.transcribe_chirp(wav_data)
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        stt_json = loop.run_until_complete(stt_service.transcribe_chirp(wav_data))
+        loop.close()
+        
         recognized_text = flatten_transcript(stt_json)
-
         score = scoring_service.calculate_accuracy(sentence_text, recognized_text)
-
+        
         session_manager.add_score(session_id, score)
 
-        print(f"Session {session_id}: Original='{sentence_text}', Recognized='{recognized_text}', Score={score}")
-
     except Exception as e:
-        print(f"Background processing error: {str(e)}")
+        print(f"[Minigame] Audio processing error: {str(e)}")
         session_manager.add_score(session_id, 0.0)
 
 
 @router.post("/evaluate")
-async def evaluate_audio(background_tasks: BackgroundTasks, session_id: str = Form(...), audio_file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def evaluate_audio(
+    background_tasks: BackgroundTasks, 
+    session_id: str = Form(...), 
+    audio_file: UploadFile = File(...), 
+    db: AsyncSession = Depends(get_db)
+):
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -109,7 +128,9 @@ async def evaluate_audio(background_tasks: BackgroundTasks, session_id: str = Fo
     if not session.current_sentence_id:
         raise HTTPException(status_code=400, detail="No current sentence")
 
-    sentence = db.query(MiniGameSentence).filter(MiniGameSentence.id == session.current_sentence_id).first()
+    stmt = select(MiniGameSentence).where(MiniGameSentence.id == session.current_sentence_id)
+    result = await db.execute(stmt)
+    sentence = result.scalar_one_or_none()
 
     if not sentence:
         raise HTTPException(status_code=404, detail="Sentence not found")
@@ -172,11 +193,13 @@ async def finish_game(session_id: str):
 
 
 @router.get("/sentences")
-async def get_sentences(difficulty: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(MiniGameSentence)
+async def get_sentences(difficulty: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+    stmt = select(MiniGameSentence)
 
     if difficulty:
-        query = query.filter(MiniGameSentence.difficulty == difficulty)
+        stmt = stmt.where(MiniGameSentence.difficulty == difficulty)
 
-    sentences = query.all()
+    result = await db.execute(stmt)
+    sentences = result.scalars().all()
+    
     return {"sentences": sentences, "count": len(sentences)}
