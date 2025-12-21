@@ -40,7 +40,15 @@ class UserService:
         # 리프레시 토큰 DB 저장
         await user_crud.update_refresh_token(db, user.user_id, refresh_token)
 
-        return {"access_token": access_token, "refresh_token": refresh_token}
+        # 사용자 정보 변환 (roles 포함)
+        from app.database.schemas.user import UserResponse
+        user_data = UserResponse.model_validate(user)
+
+        return {
+            "access_token": access_token, 
+            "refresh_token": refresh_token,
+            "user": user_data.model_dump()
+        }
 
 
     #유저 정보 조회(개인)

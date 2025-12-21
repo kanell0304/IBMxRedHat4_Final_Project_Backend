@@ -1,6 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from app.database.models.user import User
+from app.database.models.roles import Roles, RoleEnum
+from app.database.models.user_roles import UserRoles
 from typing import Optional, List
 from datetime import datetime, timedelta
 import random
@@ -9,22 +12,36 @@ import re
 
 class UserCrud:
 
-    # 유저 생성
+    # 유저 생성 (일반 회원가입)
     @staticmethod
-    async def create_user(db: AsyncSession, username: str, email: str, nickname: str, phone_number: str,hashed_password: str) -> User:
-        user = User(username=username, email=email, nickname=nickname, phone_number=phone_number, password=hashed_password)
+    async def create_user(db: AsyncSession, username: str, email: str, nickname: str, phone_number: str, hashed_password: str) -> User:
+        user = User(username=username,  email=email,  nickname=nickname,  phone_number=phone_number,  password=hashed_password)
 
         db.add(user)
+        await db.flush()  # user.user_id를 얻기 위해 flush
+        
+        # USER role 조회
+        result = await db.execute(select(Roles).where(Roles.role_name == RoleEnum.USER))
+        user_role = result.scalar_one_or_none()
+        
+        if user_role:
+            # user_roles 테이블에 직접 삽입
+            user_role_association = UserRoles(user_id=user.user_id, role_id=user_role.id)
+            db.add(user_role_association)
+        
         await db.commit()
-        await db.refresh(user)
+        
+        # roles를 포함하여 다시 조회
+        result = await db.execute(select(User).options(selectinload(User.roles)).where(User.user_id == user.user_id))
+        user = result.scalar_one()
 
         return user
 
 
-    # 이메일로 유저 조회
+    # 이메일로 유저 조회 (roles 포함)
     @staticmethod
     async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
-        result = await db.execute(select(User).where(User.email == email))
+        result = await db.execute(select(User).options(selectinload(User.roles)).where(User.email == email))
 
         return result.scalar_one_or_none()
 
@@ -37,10 +54,10 @@ class UserCrud:
         return result.scalar_one_or_none()
 
 
-    # 아이디로 유저 조회
+    # 아이디로 유저 조회 (roles 포함)
     @staticmethod
     async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
-        result = await db.execute(select(User).where(User.user_id == user_id))
+        result = await db.execute(select(User).options(selectinload(User.roles)).where(User.user_id == user_id))
 
         return result.scalar_one_or_none()
 
@@ -128,25 +145,39 @@ class UserCrud:
         return result.scalar_one_or_none()
 
 
-    # 소셜 유저 생성
+    # 소셜 유저 생성 (카카오 회원가입)
     @staticmethod
     async def create_social_user(db: AsyncSession, email: str, username: str, nickname: str, social_provider: str, social_id: str) -> User:
 
         # kakao api로 받아온 값들로 회원가입 로직 수행(단, 소셜 회원가입이기때문에 is_social=1)
-        user = User( # 유저 객체 생성
+        user = User(
             email=email,
             username=username,
             nickname=nickname,
             is_social=1,
             social_provider=social_provider,
             social_id=social_id,
-            password=None, # 어차피 kakao 계정으로 로그인 할 거기 때문에 필요 x
-            phone_number=None # kakao로 로그인 하기때문에 필요 x -> 폰번호는 어차피 비밀번호 찾기에 사용할 예정
+            password=None,
+            phone_number=None
         )
 
         db.add(user)
+        await db.flush()  # user.user_id를 얻기 위해 flush
+        
+        # user_roles 조회
+        result = await db.execute(select(Roles).where(Roles.role_name == RoleEnum.USER))
+        user_role = result.scalar_one_or_none()
+        
+        if user_role:
+            # user_roles 테이블에 직접 삽입
+            user_role_association = UserRoles(user_id=user.user_id, role_id=user_role.id)
+            db.add(user_role_association)
+        
         await db.commit()
-        await db.refresh(user)
+        
+        # roles를 포함하여 다시 조회
+        result = await db.execute(select(User).options(selectinload(User.roles)).where(User.user_id == user.user_id))
+        user = result.scalar_one()
 
         return user
 
@@ -212,13 +243,13 @@ class UserCrud:
 
     # 인증코드 저장 (User 모델에 필드 추가한 경우)
     @staticmethod
-    async def save_reset_code(db: AsyncSession, user_id: int, code: str, expires_minutes: int = 15): # expires_minutes = 15 => 임시 인증 코드의 유효 기간이 15분 이다~
+    async def save_reset_code(db: AsyncSession, user_id: int, code: str, expires_minutes: int = 15):
 
-        user = await db.get(User, user_id) # user_id로 유저 조회 후
+        user = await db.get(User, user_id)
 
-        if user: # 유저가 존재하면
-            user.reset_code = code # 인증코드 저장
-            user.reset_code_expires_at = datetime.now() + timedelta(minutes=expires_minutes) # 인증코드 유효 기간 저장
+        if user:
+            user.reset_code = code
+            user.reset_code_expires_at = datetime.now() + timedelta(minutes=expires_minutes)
             await db.flush()
 
         return user
@@ -228,7 +259,7 @@ class UserCrud:
     @staticmethod
     async def verify_reset_code(db: AsyncSession, email: str, code: str) -> Optional[User]:
 
-        result = await db.execute(select(User).where(User.email == email, User.reset_code == code, User.reset_code_expires_at > datetime.now()))  # 인증코드 만료 확인(15분이 지났는지)
+        result = await db.execute(select(User).where(User.email == email, User.reset_code == code, User.reset_code_expires_at > datetime.now()))
 
         return result.scalar_one_or_none()
 
@@ -237,11 +268,11 @@ class UserCrud:
     @staticmethod
     async def clear_reset_code(db: AsyncSession, user_id: int):
 
-        user = await db.get(User, user_id) # 해당 유저 정보를 조회
+        user = await db.get(User, user_id)
 
         if user:
-            user.reset_code = None # null로 변경
-            user.reset_code_expires_at = None # null로 변경
+            user.reset_code = None
+            user.reset_code_expires_at = None
             await db.flush()
 
         return user

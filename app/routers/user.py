@@ -55,15 +55,15 @@ async def get_current_user(db: AsyncSession = Depends(get_db), token: str = Depe
 @router.post("/login")
 async def login_for_user(response: Response, user: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     email = user.username
-    tokens = await UserService.login_user(db, email, user.password)
+    result = await UserService.login_user(db, email, user.password)
 
-    if not tokens:
+    if not result:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password", headers={"WWW-Authenticate": "Bearer"})
 
     # 쿠키에 토큰 저장
     response.set_cookie(
         key="access_token",
-        value=tokens["access_token"],
+        value=result["access_token"],
         httponly=True,
         secure=False,
         samesite="lax",
@@ -72,7 +72,7 @@ async def login_for_user(response: Response, user: OAuth2PasswordRequestForm = D
     
     response.set_cookie(
         key="refresh_token",
-        value=tokens["refresh_token"],
+        value=result["refresh_token"],
         httponly=True,
         secure=False,
         samesite="lax",
@@ -81,7 +81,8 @@ async def login_for_user(response: Response, user: OAuth2PasswordRequestForm = D
 
     return {
         "message": "로그인 성공",
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "user": result["user"]
     }
 
 
@@ -176,12 +177,12 @@ async def get_kakao_login_url():
 # 카카오 인가 코드로 로그인/회원가입 처리
 @router.post("/kakao/callback")
 async def kakao_login(request: KakaoCallbackRequest, response: Response, db: AsyncSession = Depends(get_db)):
-    tokens = await kakao_login_or_signup(db, request.code)
+    result = await kakao_login_or_signup(db, request.code)
 
     # 쿠키에 토큰 저장
     response.set_cookie(
         key="access_token",
-        value=tokens["access_token"],
+        value=result["access_token"],
         httponly=True,
         secure=False,
         samesite="lax",
@@ -190,7 +191,7 @@ async def kakao_login(request: KakaoCallbackRequest, response: Response, db: Asy
     
     response.set_cookie(
         key="refresh_token",
-        value=tokens["refresh_token"],
+        value=result["refresh_token"],
         httponly=True,
         secure=False,
         samesite="lax",
@@ -199,8 +200,9 @@ async def kakao_login(request: KakaoCallbackRequest, response: Response, db: Asy
 
     return {
         "message": "로그인 성공",
-        "is_new_user": tokens.get("is_new_user", False),
-        "token_type": "bearer"
+        "is_new_user": result.get("is_new_user", False),
+        "token_type": "bearer",
+        "user": result["user"]
     }
 
 

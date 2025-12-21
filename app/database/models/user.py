@@ -36,3 +36,5 @@ class User(Base):
         Index('idx_email', 'email'),  # 로그인 시 이메일로 사용자 조회
         Index('idx_social_id', 'social_provider', 'social_id'),  # 소셜 로그인 조회용
     )
+
+    roles: Mapped[List["Roles"]] = relationship("Roles", secondary="user_roles", back_populates="users")

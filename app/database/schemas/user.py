@@ -1,7 +1,15 @@
 from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import Optional
+from typing import Optional, List
+
+# Role 스키마
+class RoleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    role_name: str
+    description: Optional[str] = None
 
 # 사용자 관련 스키마
 class UserBase(BaseModel):
@@ -31,6 +39,7 @@ class UserResponse(UserBase):
     phone_number: Optional[str] = None
     profile_image_id: Optional[int] = Field(default=None, alias="profile_image_id")
     created_at: datetime
+    roles: List[RoleResponse] = []
 
 class Token(BaseModel):
     access_token: str
@@ -79,6 +88,6 @@ class UserReadWithProfile(UserResponse):
             phone_number=user.phone_number,
             created_at=user.created_at,
             profile_image_id=user.profile_image_id,
-            profile_image_url=profile_url
+            profile_image_url=profile_url,
+            roles=[RoleResponse.model_validate(role) for role in user.roles]
         )
-        

@@ -84,9 +84,17 @@ async def kakao_login_or_signup(db: AsyncSession, code: str) -> dict:
     # 리프레시 토큰 DB 저장
     await UserCrud.update_refresh_token(db, user.user_id, refresh_token)
     
+    # 사용자 정보 다시 조회 (roles 포함)
+    user = await UserCrud.get_user_by_id(db, user.user_id)
+    
+    # 사용자 정보 변환
+    from app.database.schemas.user import UserResponse
+    user_data = UserResponse.model_validate(user)
+    
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer",
-        "is_new_user": is_new_user
+        "is_new_user": is_new_user,
+        "user": user_data.model_dump()
     }

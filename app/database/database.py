@@ -45,6 +45,8 @@ def create_tables():
         from .models import interview
         from .models import community
         from .models import minigame
+        from .models import roles
+        from .models import user_roles
 
         Base.metadata.create_all(bind=sync_engine)
 
@@ -114,6 +116,25 @@ def create_tables():
             if created:
                 session.commit()
                 print(f"기본 커뮤니티 카테고리 {created}건 추가")
+
+        # 기본 Role 데이터 삽입
+        from app.database.models.roles import Roles, RoleEnum
+        
+        default_roles = [
+            {"role_name": RoleEnum.USER, "description": "일반 사용자"},
+            {"role_name": RoleEnum.ADMIN, "description": "관리자"},
+        ]
+        
+        with Session(sync_engine) as session:
+            created = 0
+            for item in default_roles:
+                exists = session.query(Roles).filter_by(role_name=item["role_name"]).first()
+                if not exists:
+                    session.add(Roles(role_name=item["role_name"], description=item["description"]))
+                    created += 1
+            if created:
+                session.commit()
+                print(f"기본 Role {created}건 추가")
 
         print("데이터베이스 테이블 생성")
         
