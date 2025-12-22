@@ -159,3 +159,24 @@ async def get_result(db, result_id: int):
 async def list_results(db, i_id: int):
   result = await db.execute(select(InterviewResult).where(InterviewResult.i_id == i_id))
   return result.scalars().all()
+
+
+# scope=overall 조회
+async def get_result_by_scope(db, i_id:int, scope:str):
+  result=await db.execute(
+    select(InterviewResult).where(
+      InterviewResult.i_id==i_id,
+      InterviewResult.scope==scope
+    ).limit(1)
+  )
+  return result.scalar_one_or_none()
+
+# scope=per_question 전체 조회
+async def get_results_by_scope(db, i_id:int, scope:str):
+  result=await db.execute(
+    select(InterviewResult).where(
+      InterviewResult.i_id==i_id,
+      InterviewResult.scope==scope
+    ).order_by(InterviewResult.i_result_id)
+  )
+  return result.scalars().all()
