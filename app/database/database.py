@@ -103,7 +103,7 @@ def create_tables():
             {"name": "자유게시판", "description": "자유롭게 소통하는 공간"},
             {"name": "말투 상담소", "description": "말투와 커뮤니케이션을 상담하는 공간"},
             {"name": "취업·진로", "description": "면접 경험을 공유하는 공간"},
-            {"name": "연애 상담소", "description": "연애 고민을 나누는 공간"},
+            {"name": "발표·주제 상담소", "description": "발표 준비하는 공간"},
         ]
 
         with Session(sync_engine) as session:
