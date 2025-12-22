@@ -5,8 +5,6 @@ def build_prompt(
         transcript:str, 
         bert_analysis:Dict,
         stt_metrics:Optional[Dict]=None,
-        weakness_patterns:Optional[Dict]=None,
-        evolution_insights:Optional[Dict]=None,
         qa_list:Optional[list[dict]]=None,
         )->str:
 
@@ -29,29 +27,6 @@ def build_prompt(
 - 낮은 신뢰도 단어 비율 : {stt_metrics.get('avg_low_conf_ratio', 0)}
 """
         
-    weakness_summary=""
-    if weakness_patterns:
-        weakness_summary=f"""
-[장기 약점 패턴 분석]
-- 반복적으로 나타나는 약점 라벨 : {weakness_patterns.get('weak_labels', [])}
-- 문제가 자주 발생한 질문 번호 : {weakness_patterns.get('weak_questions', [])}
-- 요약 : {weakness_patterns.get('pattern_summary', '')}
-"""
-        
-    evolution_summary=""
-    if evolution_insights:
-        improvement=evolution_insights.get("improvement", {})
-        evolution_summary=f"""
-
-
-[말하기 스타일 변화 추세]
-- 타임라인 : {evolution_insights.get('timeline', [])}
-- 변화 방향 : {improvement.get('direction')}
-- 변화율 : {improvement.get('percent')}%
-- 시작 점수 → 현재 점수 : {improvement.get('from')} → {improvement.get('to')}
-- 요약 : {improvement.get('summary')}
-"""
-
     qa_block=""
     if qa_list:
         qa_lines=[]
@@ -79,17 +54,13 @@ def build_prompt(
 [BERT 멀티라벨 분석 결과]
 {bert_summary}
 {stt_summary}
-{weakness_summary}
-{evolution_summary}
 
 
 [요구사항]
 1. 먼저 이번 면접 답변 자체에 대한 평가를 작성하세요. (논리, 전달력, 표현, 말투 등)
 2. 각 질문에 대해, 지원자의 답변이 질문 의도에 얼마나 적합한지 '내용 측면'에서 평가하세요.
 3. BERT 결과와 STT 메트릭을 활용하여 구체적인 개선 포인트를 제시하세요.
-4. Chroma 기반 장기 패턴(약점, 변화 추세)이 제공된 경우,
-    "이 사용자는 평소에 어떤 경향이 있는지"까지 함께 설명하세요.
-5. 전체 요약, 구체적인 문제점, 개선 방법, 연습 방향을 섹션별로 나누어 JSON 포맷으로 반환하세요.
+4. 전체 요약, 구체적인 문제점, 개선 방법, 연습 방향을 섹션별로 나누어 JSON 포맷으로 반환하세요.
 
 
 [분석 가이드]
@@ -114,14 +85,14 @@ def build_prompt(
     - "discourse_clarity":
         - 문장 구조가 어수선한지, 말이 빙빙 도는지, 앞뒤가 모호한지,
           그리고 면접 상황에 맞는 격식을 유지하고 있는지 등을 평가합니다.
-        - BERT 결과 중 "formality inconsistency", "disfluncy/repetition", "vague", "ending_da"를 참고하세요.
+        - BERT 결과 중 "formality_inconsistency", "disfluency_repetition", "vague", "ending_da"를 참고하세요.
     
     
     - non_standard 점수 결정 시, BERT 라벨 중 "slang", "biased", "curse"의 label과 score를 우선적으로 반영하세요.
     - filler_words 점수를 정할 때는 BERT 라벨 중 "filler"만을 가장 중요하게 반영하세요.
-    - discourse_clarity 점수를 결정할 때 "formality inconsistency", "disfluency/repetition", "vague", "ending_da" 네 가지를 종합적으로 고려하세요.
+    - discourse_clarity 점수를 결정할 때 "formality_inconsistency", "disfluency_repetition", "vague", "ending_da" 네 가지를 종합적으로 고려하세요.
 
-2. score(0~100점 정수)
+2. score(0~100점 정수) - 문제 심각도 점수(높을수록 문제가 심함)
     - 0~20 : 문제 없음
     - 21~40 : 아주 약한 정도로 존재
     - 41~60 : 약하게 존재

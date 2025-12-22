@@ -19,8 +19,6 @@ class OpenAIService:
             transcript:str, 
             bert_analysis:Dict,
             stt_metrics:Optional[Dict[str, Any]]=None,
-            weakness_pattern:Optional[Dict[str, Any]]=None,
-            evolution_insights:Optional[Dict[str, Any]]=None,
             qa_list:Optional[List[Dict[str, Any]]]=None,
             )->I_Report:
 
@@ -28,8 +26,6 @@ class OpenAIService:
                  transcript=transcript,
                  bert_analysis=bert_analysis,
                  stt_metrics=stt_metrics,
-                 weakness_patterns=weakness_pattern,
-                 evolution_insights=evolution_insights,
                  qa_list=qa_list
             )
             response=await self.client.chat.completions.create(
