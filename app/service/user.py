@@ -19,9 +19,13 @@ class UserService:
     async def register_user(db: AsyncSession, username: str, email: str, nickname: str, phone_number: str, password: str):
         # 중복 이메일 체크
         existing_email = await user_crud.get_user_by_email(db, email)
-
         if existing_email:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 등록된 이메일입니다")
+
+        # 중복 닉네임 체크
+        existing_nickname = await user_crud.get_user_by_nickname(db, nickname)
+        if existing_nickname:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 사용 중인 닉네임입니다")
 
         hashed_pw = hash_password(password)
         return await user_crud.create_user(db, username, email, nickname, phone_number, hashed_pw)
@@ -73,8 +77,24 @@ class UserService:
     # 유저 업데이트
     @staticmethod
     async def update_user(db: AsyncSession, user_id: int ,user_data:UserUpdate):
-        hashed_password = None
+        # 현재 유저 정보 조회
+        current_user = await user_crud.get_user_by_id(db, user_id)
+        if not current_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{user_id} 사용자가 존재하지 않습니다")
 
+        # 이메일 변경 시 중복 체크 (본인 제외)
+        if user_data.email and user_data.email != current_user.email:
+            existing_email = await user_crud.get_user_by_email(db, user_data.email)
+            if existing_email:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 등록된 이메일입니다")
+
+        # 닉네임 변경 시 중복 체크 (본인 제외)
+        if user_data.nickname and user_data.nickname != current_user.nickname:
+            existing_nickname = await user_crud.get_user_by_nickname(db, user_data.nickname)
+            if existing_nickname:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 사용 중인 닉네임입니다")
+
+        hashed_password = None
         if user_data.password:
             hashed_password = hash_password(user_data.password)
 

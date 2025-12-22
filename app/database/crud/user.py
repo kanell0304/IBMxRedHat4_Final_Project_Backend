@@ -29,6 +29,14 @@ class UserCrud:
         return result.scalar_one_or_none()
 
 
+    # 닉네임으로 유저 조회
+    @staticmethod
+    async def get_user_by_nickname(db: AsyncSession, nickname: str) -> User | None:
+        result = await db.execute(select(User).where(User.nickname == nickname))
+
+        return result.scalar_one_or_none()
+
+
     # 유저네임으로 유저 조회
     @staticmethod
     async def get_user_by_username(db: AsyncSession, user_name: str) -> User | None:

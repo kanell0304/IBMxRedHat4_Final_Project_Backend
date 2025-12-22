@@ -398,3 +398,11 @@ async def get_liked_posts(user_id: int = Query(...), page: int = Query(1, ge=1),
             "total_pages": (total + page_size - 1) // page_size
         }
     }
+
+# delete category
+@router.delete("/categories/{category_id}", status_code=200)
+async def delete_category(category_id: int, db: AsyncSession = Depends(get_db)):
+    deleted = await CommunityCRUD.delete_category(db, category_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return {"message": "Category deleted"}

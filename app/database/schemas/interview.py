@@ -52,6 +52,7 @@ class RevisedExample(BaseModel):
 # 개별 지표 분석
 class IndexAnalysis(BaseModel):
     score:int=Field(..., ge=0, le=100, description="0~100점 척도 점수")
+    grade:str=Field(..., description="S/A/B/C/D 등급")
     detected_examples:List[str]=Field(default_factory=list, description="이 지표와 관련된 문제가 드러난 실제 문장 예시")
     reason:str=Field(..., description="왜 이런 평가가 나왔는지에 대한 설명")
     improvement:str=Field(..., description="어떻게 개선하면 좋을지에 대한 가이드")
@@ -60,6 +61,7 @@ class IndexAnalysis(BaseModel):
 # 내용 전체 평가 + 질문별 평가
 class ContentOverall(BaseModel):
     score:int=Field(..., ge=0, le=100, description="전체 답변의 내용 적절성 점수")
+    grade:str=Field(..., description="S/A/B/C/D 등급")
     strengths:List[str]=Field(default_factory=list, description="내용적으로 잘한 점")
     weaknesses:List[str]=Field(default_factory=list, description="내용적으로 부족한 점")
     summary:str=Field(..., description="내용 측면에서의 한 문단 요약")
@@ -68,8 +70,12 @@ class PerQuestionContent(BaseModel):
     q_index:int=Field(..., description="질문 번호")
     q_text:str=Field(..., description="질문 텍스트")
     score:int=Field(..., ge=0, le=100, description="해당 질문에 대한 답변 내용 적절성 점수")
+    grade:str=Field(..., description="S/A/B/C/D 등급")
     comment:str=Field(..., description="이 답변이 왜 적절/부적절했는지 내용 중심 코멘트")
     suggestion:str=Field(..., description="어떻게 말하면 더 좋았을지에 대한 구체적 제안")
+    question_intent:str=Field(default="", description="질문 의도 요약")
+    is_appropriate:bool=Field(default=True, description="답변이 질문 의도에 맞는지 여부")
+    evidence_sentences:List[str]=Field(default_factory=list, description="근거가 되는 문장들")
 
 
 # 최종 리포트
@@ -224,3 +230,75 @@ class I_Result(BaseModel):
 
         # 파싱 실패 시 dict 그대로 반환
         return v
+    
+
+# 인터뷰 직후 결과
+class QuestionDetailEvaluation(BaseModel):
+    q_index:int
+    q_text:str
+    user_answer:str=Field(..., description="사용자가 말한 답변 원문")
+    question_intent:str=Field(..., description="질문 의도 요약")
+    is_appropriate:bool=Field(..., description="답변이 질문 의도에 맞는지 여부")
+    feedback:str=Field(..., description="개선 가이드")
+    evidence_sentences:List[str]=Field(default_factory=list, description="근거가 되는 문장")
+
+
+class SimilarAnswerHint(BaseModel):
+    message:str=Field(..., description="유사 답변 힌트 메시지")
+    answer_id:int=Field(..., description="유사한 과거 answer_id")
+    similarity:float=Field(..., description="유사도 점수")
+
+
+class ImmediateResultResponse(BaseModel):
+    i_id:int
+    overall_report:I_Report=Field(..., description="인터뷰 총평")
+    question_details:List[QuestionDetailEvaluation]=Field(..., description="질문별 세부 평가")
+    similar_hint:Optional[SimilarAnswerHint]=Field(None, description="유사 답변 힌트 (3회 이상일 때만 해당)")
+
+
+# 히스토리 : 말버릇/약점 분석
+class EvidenceSentence(BaseModel):
+    text:str=Field(..., description="실제 사용자가 말한 문장")
+    answer_id:int=Field(..., description="해당 answer_id")
+    session_id:int=Field(..., description="interview session_id")
+
+
+class SimilarAnswerLink(BaseModel):
+    answer_id:int=Field(..., description="유사한 answer_id")
+    text_preview:str=Field(..., description="답변 미리보기")
+    similarity:float=Field(..., description="유사도")
+
+
+class WeaknessDetail(BaseModel):
+    label_name:str=Field(..., description="약점 라벨")
+    label_display_name:str=Field(..., description="약점 라벨 ver.ko")
+    avg_score:float=Field(..., description="평균 점수")
+    occurrence_count:int=Field(..., description="발생 횟수")
+    evidence_sentences:List[EvidenceSentence]=Field(..., description="증거 문장 2~3개")
+    similar_answers:List[SimilarAnswerLink]=Field(..., description="유사 답변 링크")
+    improvement_guide:str=Field(..., description="개선 가이드")
+
+
+class WeaknessCardResponse(BaseModel):
+    total_interviews:int=Field(..., description="총 인터뷰 수")
+    has_enough_data:bool=Field(..., description="3회 이상 데이터가 있는지")
+    top_weaknesses:List[WeaknessDetail]=Field(..., description="약점 TOP 3")
+    summary:str=Field(..., description="전체 약점 요약")
+
+
+# 히스토리 : 지표 변화
+class MetricChange(BaseModel):
+    metric_name:str=Field(..., description="지표 이름")
+    previous_avg:float=Field(..., description="이전 5회 평균값")
+    recent_avg:float=Field(..., description="최근 5회 평균값")
+    change_percent:float=Field(..., description="변화율")
+    direction:str=Field(..., description="up / down / stable")
+    is_positive:bool=Field(..., description="긍정적 변화인지 여부")
+
+
+class MetricChangeCardResponse(BaseModel):
+    total_interviews:int=Field(..., description="총 인터뷰 수")
+    has_enough_data:bool=Field(..., description="10회 이상 데이터가 있는지 여부")
+    significant_changes:List[MetricChange]=Field(..., description="변화가 큰 지표들")
+    summary:str=Field(..., description="전체 변화 요약 문장")
+

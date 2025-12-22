@@ -1,29 +1,31 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.database import get_db
 from app.service.analysis_service import get_analysis_service
 from app.service.i_start_service import i_start_session
-from app.database.schemas.interview import AnalyzeReq, I_Report, ProcessAnswerResponse, AnswerUploadResponse, I_Create, I_Basic, I_Detail, AnswerCreate, Answer, I_Result, I_StartReq, I_StartRes, AnswerUploadProcessResponse
+from app.database.schemas.interview import AnalyzeReq, I_Report, ProcessAnswerResponse, AnswerUploadResponse, I_Create, I_Basic, I_Detail, AnswerCreate, Answer, I_Result, I_StartReq, I_StartRes, AnswerUploadProcessResponse, ImmediateResultResponse, MetricChangeCardResponse, WeaknessCardResponse
 from app.database.crud import interview as crud
 from app.service.i_stats_service import compute_interview_stt_metrics
 from app.service.llm_service import OpenAIService
-from app.service.answer_analysis_service import i_process_answer, analyze_weakness_patterns, analyze_speech_style_evolution, extract_transcript, aggregate_bert_labels
+from app.service.answer_analysis_service import i_process_answer, extract_transcript, aggregate_bert_labels
 from app.service.audio_service import AudioService
 from app.service.stt_service import STTService
 from app.service.i_stt_metrics import compute_stt_metrics
 from app.core.settings import settings
 
 
+
 router=APIRouter(prefix="/interview", tags=["interview"])
 
 # DB 질문 기반 인터뷰 시작
 @router.post("/start", response_model=I_StartRes)
-async def i_start(payload: I_StartReq, db = Depends(get_db)):
+async def i_start(payload: I_StartReq, db: AsyncSession = Depends(get_db)):
     return await i_start_session(db, payload)
 
 
 # 대화 전체 분석
 @router.post("/analyze", response_model=I_Report)
-async def analyze(request:AnalyzeReq, db=Depends(get_db)):
+async def analyze(request:AnalyzeReq, db: AsyncSession = Depends(get_db)):
     interview=await crud.get_i(db, request.i_id)    
     service=get_analysis_service()
     report=await service.analyze_interview(request.transcript)
@@ -34,7 +36,7 @@ async def analyze(request:AnalyzeReq, db=Depends(get_db)):
 
 # 인터뷰 전체 종합 분석
 @router.post("/{i_id}/analyze_full", response_model=I_Report)
-async def analyze_interview_full(i_id:int, db=Depends(get_db)):
+async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
     try:
         interview=await crud.get_i(db, i_id)
         if not interview:
@@ -73,16 +75,11 @@ async def analyze_interview_full(i_id:int, db=Depends(get_db)):
 
         stt_metrics=await compute_interview_stt_metrics(i_id, db)
 
-        weakness_patterns=analyze_weakness_patterns(interview.user_id)
-        evolution_insights=analyze_speech_style_evolution(interview.user_id)
-
         llm_service=OpenAIService()
         report=await llm_service.generate_report(
             transcript=full_transcript,
             bert_analysis=bert_analysis,
             stt_metrics=stt_metrics,
-            weakness_pattern=weakness_patterns,
-            evolution_insights=evolution_insights,
             qa_list=qa_list
         )
 
@@ -133,8 +130,20 @@ async def analyze_interview_full(i_id:int, db=Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"분석 중 오류 : {e}")
 
 
+# 인터뷰 직후 결과
+@router.get("/{i_id}/immediate_result", response_model=ImmediateResultResponse)
+async def get_interview_immediate_result(i_id: int, db: AsyncSession = Depends(get_db)):
+    from app.service.immediate_result_service import get_immediate_result
+    try:
+        return await get_immediate_result(i_id, db)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"결과 조회 중 오류: {e}")
+
+
 @router.get("/answers/{answer_id}/result", response_model=dict)
-async def get_answer_result(answer_id:int, db=Depends(get_db)):
+async def get_answer_result(answer_id:int, db: AsyncSession = Depends(get_db)):
     from sqlalchemy import select
     from app.database.models.interview import InterviewResult
 
@@ -153,13 +162,13 @@ async def get_answer_result(answer_id:int, db=Depends(get_db)):
 
 # 개별 답변 라벨링/문장 분해 처리
 @router.post("/answers/{answer_id}/process", response_model=ProcessAnswerResponse)
-async def process_answer(answer_id: int, db = Depends(get_db)):
+async def process_answer(answer_id: int, db: AsyncSession = Depends(get_db)):
     return await i_process_answer(answer_id, db)
 
 
 # 답변 오디오 업로드
 @router.post("/answers/{answer_id}/upload", response_model=AnswerUploadResponse)
-async def upload_answer_audio(answer_id: int, file: UploadFile = File(...), db = Depends(get_db)):
+async def upload_answer_audio(answer_id: int, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     answer = await crud.get_answer(db, answer_id)
 
     data = await file.read()
@@ -188,7 +197,7 @@ async def upload_answer_audio(answer_id: int, file: UploadFile = File(...), db =
 
 # 답변 오디오 업로드 + BERT 분석 통합
 @router.post("/answers/{answer_id}/upload_process", response_model=AnswerUploadProcessResponse)
-async def upload_process_answer_audio(answer_id:int, file:UploadFile=File(...), db=Depends(get_db)):
+async def upload_process_answer_audio(answer_id:int, file:UploadFile=File(...), db: AsyncSession = Depends(get_db)):
     answer=await crud.get_answer(db, answer_id)
 
     data=await file.read()
@@ -229,7 +238,7 @@ async def upload_process_answer_audio(answer_id:int, file:UploadFile=File(...), 
 
 # 인터뷰 생성
 @router.post("", response_model=I_Basic)
-async def create_i(payload: I_Create, db = Depends(get_db)):
+async def create_i(payload: I_Create, db: AsyncSession = Depends(get_db)):
     return await crud.create_i(
         db=db,
         user_id=payload.user_id,
@@ -241,19 +250,19 @@ async def create_i(payload: I_Create, db = Depends(get_db)):
 
 # 인터뷰 단건 조회
 @router.get("/{i_id}", response_model=I_Detail)
-async def get_i(i_id: int, db = Depends(get_db)):
+async def get_i(i_id: int, db: AsyncSession = Depends(get_db)):
     return await crud.get_i(db, i_id)
 
 
 # 사용자별 인터뷰 목록
 @router.get("/users/{user_id}/interviews", response_model=list[I_Basic])
-async def list_user_i(user_id: int, db = Depends(get_db)):
+async def list_user_i(user_id: int, db: AsyncSession = Depends(get_db)):
     return await crud.list_i(db, user_id)
 
 
 # 답변 생성/저장
 @router.post("/{i_id}/answers", response_model=Answer)
-async def create_answer_i(i_id: int, payload: AnswerCreate, db = Depends(get_db)):
+async def create_answer_i(i_id: int, payload: AnswerCreate, db: AsyncSession = Depends(get_db)):
     await crud.get_i(db, i_id)
 
     return await crud.create_answer(
@@ -266,7 +275,7 @@ async def create_answer_i(i_id: int, payload: AnswerCreate, db = Depends(get_db)
 
 # 답변 삭제
 @router.delete("/{i_id}/answers/{answer_id}", status_code=204)
-async def delete_answer_i(i_id: int, answer_id: int, db = Depends(get_db)):
+async def delete_answer_i(i_id: int, answer_id: int, db: AsyncSession = Depends(get_db)):
     deleted = await crud.delete_answer(answer_id, i_id, db)
     if not deleted:
         raise HTTPException(status_code=404, detail="데이터가 없습니다")
@@ -275,7 +284,7 @@ async def delete_answer_i(i_id: int, answer_id: int, db = Depends(get_db)):
 
 # 인터뷰 완료 처리
 @router.post("/{i_id}/complete", response_model=I_Basic)
-async def complete_i(i_id: int, db = Depends(get_db)):
+async def complete_i(i_id: int, db: AsyncSession = Depends(get_db)):
     i = await crud.complete_i(db, i_id)
     if not i:
         raise HTTPException(status_code=404, detail="데이터가 없습니다")
@@ -284,14 +293,40 @@ async def complete_i(i_id: int, db = Depends(get_db)):
 
 # 인터뷰 결과 조회
 @router.get("/{i_id}/results", response_model=list[I_Result])
-async def get_results(i_id: int, db = Depends(get_db)):
+async def get_results(i_id: int, db: AsyncSession = Depends(get_db)):
     return await crud.list_results(db, i_id)
 
 
 # 인터뷰 삭제
 @router.delete("/{i_id}", status_code=204)
-async def delete_i(i_id: int, db = Depends(get_db)):
+async def delete_i(i_id: int, db: AsyncSession = Depends(get_db)):
     deleted = await crud.delete_i(db, i_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="데이터가 없습니다")
     return Response(status_code=204)
+
+
+# 히스토리 : 말버릇/약점 분석
+@router.get("/users/{user_id}/weaknesses", response_model=WeaknessCardResponse)
+async def get_user_weaknesses(
+    user_id:int,
+    db:AsyncSession=Depends(get_db)
+):
+    from app.service.weakness_analyzer import get_weakness_analysis
+    try:
+        return await get_weakness_analysis(db, user_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"약점 분석 중 오류: {e}")
+
+
+# 히스토리 : 지표 변화
+@router.get("/users/{user_id}/metric_changes", response_model=MetricChangeCardResponse)
+async def get_user_metric_changes(
+    user_id:int,
+    db:AsyncSession=Depends(get_db)
+):
+    from app.service.metric_tracker import get_metric_changes
+    try:
+        return await get_metric_changes(db, user_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"지표 변화 분석 중 오류: {e}")
