@@ -1,10 +1,8 @@
 import os
 from typing import Dict, Any, List, Optional
 from collections import defaultdict
-from app.core.settings import settings
 from app.database.models.interview import InterviewAnswer, Interview
 from app.infra.chroma_db import collection, get_embedding
-from app.service.i_stt_metrics import compute_stt_metrics
 
 
 # 여러 답변의 BERT labels 집계하여 interview 대표 라벨 산출
@@ -58,9 +56,10 @@ def save_chroma(
     label_counts: Dict[str, int],
     overall_raw_labels: Dict[str, Any],
     stt_metrics: Optional[Dict[str, Any]] = None,
+    created_at: Optional[float] = None,
 ):
 
-  # user_id 추가 전 저장된 기존 문서가 있으면 제거하고 덮어쓴다 (answer_id 기준)
+  # user_id 추가 전 저장된 기존 문서가 있으면 제거하고 덮어씀
   try:
     collection.delete(where={"answer_id": answer_id})
   except Exception:
@@ -91,6 +90,9 @@ def save_chroma(
     **flat_stt,
   }
 
+  if created_at is not None:
+    full_metadata["created_at"]=created_at
+
   ids: List[str] = [f"user_{user_id}_answer_{answer_id}_full"]
   docs: List[str] = [text]
   metas: List[Dict[str, Any]] = [full_metadata]
@@ -112,6 +114,9 @@ def save_chroma(
       "sentence_index": idx,
       **{f"{k}_label": int(v) for k, v in sent_labels.items()},
     }
+
+    if created_at is not None:
+      sent_metadata["created_at"]=created_at
     ids.append(f"user_{user_id}_answer_{answer_id}_sent_{idx}")
     docs.append(sent_text)
     metas.append(sent_metadata)
@@ -222,7 +227,7 @@ async def i_process_answer(answer_id: int, db):
   await db.commit()
   await db.refresh(answer)
 
-  # chromadb 저장
+  
   save_chroma(
     answer_id=answer.i_answer_id,
     session_id=answer.i_id,
@@ -233,6 +238,7 @@ async def i_process_answer(answer_id: int, db):
     label_counts=label_counts,
     overall_raw_labels=overall_raw,
     stt_metrics=stt_metrics,
+    created_at=answer.created_at.timestamp() if answer.created_at else None,
   )
 
   return {
@@ -243,182 +249,4 @@ async def i_process_answer(answer_id: int, db):
     ],
     "label_counts": label_counts,
     "stt_metrics": stt_metrics,
-  }
-
-
-
-# Retrieve 함수
-# 약점 패턴 발견
-def analyze_weakness_patterns(user_id:int)->Dict[str, Any]:
-
-  all_answers=collection.get(
-    where={
-      "$and":[
-        {"user_id":user_id},
-        {"type":"user_answer_sentence"}
-      ]
-    }
-  )
-
-  if not all_answers["ids"]:
-    return {
-      "weak_labels":[],
-      "weak_questions":[],
-      "label_details":{},
-      "pattern_summary":"분석할 데이터가 부족합니다."
-    }
-  
-
-  label_issues=defaultdict(list)
-  question_issues_count=defaultdict(int)
-
-  for metadata in all_answers["metadatas"]:
-    q_no=metadata.get("question_no", 0)
-
-    # 라벨 1인 항목 찾기
-    for key, value in metadata.items():
-      if key.endswith("_label") and value==1:
-        label_name=key.replace("_label","")
-        label_issues[label_name].append(q_no)
-        question_issues_count[q_no]+=1
-        
-  # 사용자의 발화에서 가장 문제되는 라벨(상위 3개)
-  weak_labels=sorted(
-    label_issues.items(),
-    key=lambda x:len(x[1]),
-    reverse=True
-  )[:3]
-
-  # 문제 많은 질문(상위 3개)
-  weak_questions=sorted(
-    question_issues_count.items(),
-    key=lambda x:x[1],
-    reverse=True
-  )[:3]
-
-
-  # 패턴 요약 생성
-  if weak_labels:
-    top_label=weak_labels[0][0].replace("_"," ")
-    top_count=len(set(weak_labels[0][1]))
-    pattern_summary=f"{top_label}이(가) {top_count}개 질문에서 반복적으로 나타납니다."
-  else:
-    pattern_summary="특별한 약점 패턴이 발견되지 않았습니다."
-  
-  return {
-    "weak_labels":[label for label, _ in weak_labels],
-    "weak_questions":[q for q, _ in weak_questions],
-    "label_details":{
-      label:sorted(list(set(qnos)))
-      for label, qnos in weak_labels
-    },
-    "pattern_summary":pattern_summary
-  }
-
-# 사용자 답변 스타일 개선현황 분석
-def analyze_speech_style_evolution(
-    user_id:int, question_no:Optional[int]=None
-)->Dict[str, Any]:
-  
-  if question_no is None:
-    where_condition:Dict[str, Any]={
-      "$and":[
-        {"user_id":user_id},
-        {"type":"user_answer_full"},
-      ]
-    }
-  
-  else:
-    where_condition={
-      "$and":[
-        {"user_id":user_id},
-        {"type":"user_answer_full"},
-        {"question_no":question_no},
-      ]
-    }
-  
-  results=collection.get(where=where_condition)
-
-  if not results["ids"]:
-    return {
-      "timeline":[],
-      "improvement_rate":0.0,
-      "evolution_summary":"분석할 데이터가 부족합니다."
-    }
-  
-  # 세션별 집계
-  session_data=defaultdict(lambda:{
-    "scores":[],
-    "issue_count":0,
-    "answer_ids":[]
-  })
-
-  for metadata in results["metadatas"]:
-    session_id=metadata.get("session_id",0)
-
-    scores:List[float]=[]
-
-    for key, value in metadata.items():
-      if key.endswith("_score"):
-        scores.append(float(value))
-      if key.endswith("_label") and value==1:
-        session_data[session_id]["issue_count"]+=1
-
-    if scores:
-      session_data[session_id]["scores"].extend(scores)
-      session_data[session_id]["answer_ids"].append(metadata.get("answer_id"))
-
-  # 타임라인 정리 : session_id 오름차순
-  timeline:List[Dict[str, Any]]=[]
-
-  for session_id, data in sorted(session_data.items(), key=lambda x:x[0]):
-    avg_score=sum(data["scores"])/len(data["scores"]) if data["scores"] else 0
-    timeline.append({
-      "session_id":session_id,
-      "avg_score":round(avg_score, 2),
-      "issue_count":data["issue_count"],
-      "num_answers":len(data["answer_ids"])
-    })
-
-  if len(timeline)<2:
-    return {
-      "timeline":timeline,
-      "improvement":{
-        "direction":"same",
-        "percent":0.0,
-        "from":timeline[0]["avg_score"] if timeline else 0,
-        "to":timeline[-1]["avg_score"] if timeline else 0,
-        "summary":"비교할 데이터가 부족합니다. 더 연습해보세요!"
-      }
-    }
-  
-  first_score=timeline[0]["avg_score"]
-  last_score=timeline[-1]["avg_score"]
- 
-  # 퍼센트 변화율 계산(항상 양수값으로)
-  if first_score>0:
-    percent=abs(last_score-first_score)/first_score*100
-  else:
-    percent=0.0
-  
-  # 방향 판단
-  if last_score<first_score:
-    direction="improved"
-    summary=f"{percent:.1f}% 개선되었습니다."
-  elif last_score>first_score:
-    direction="worsened"
-    summary=f"{percent:.1f}% 악화되었습니다."
-  else:
-    direction="same"
-    summary="큰 변화 없이 일정한 실력을 유지하고 있습니다."
-  
-  return {
-    "timeline":timeline,
-    "improvement":{
-      "direction":direction,
-      "percent":round(percent, 2),
-      "from":round(first_score, 2),
-      "to":round(last_score, 2),
-      "summary":summary,
-    }
   }

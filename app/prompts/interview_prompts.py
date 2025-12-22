@@ -5,8 +5,6 @@ def build_prompt(
         transcript:str, 
         bert_analysis:Dict,
         stt_metrics:Optional[Dict]=None,
-        weakness_patterns:Optional[Dict]=None,
-        evolution_insights:Optional[Dict]=None,
         qa_list:Optional[list[dict]]=None,
         )->str:
 
@@ -29,29 +27,6 @@ def build_prompt(
 - 낮은 신뢰도 단어 비율 : {stt_metrics.get('avg_low_conf_ratio', 0)}
 """
         
-    weakness_summary=""
-    if weakness_patterns:
-        weakness_summary=f"""
-[장기 약점 패턴 분석]
-- 반복적으로 나타나는 약점 라벨 : {weakness_patterns.get('weak_labels', [])}
-- 문제가 자주 발생한 질문 번호 : {weakness_patterns.get('weak_questions', [])}
-- 요약 : {weakness_patterns.get('pattern_summary', '')}
-"""
-        
-    evolution_summary=""
-    if evolution_insights:
-        improvement=evolution_insights.get("improvement", {})
-        evolution_summary=f"""
-
-
-[말하기 스타일 변화 추세]
-- 타임라인 : {evolution_insights.get('timeline', [])}
-- 변화 방향 : {improvement.get('direction')}
-- 변화율 : {improvement.get('percent')}%
-- 시작 점수 → 현재 점수 : {improvement.get('from')} → {improvement.get('to')}
-- 요약 : {improvement.get('summary')}
-"""
-
     qa_block=""
     if qa_list:
         qa_lines=[]
@@ -79,22 +54,23 @@ def build_prompt(
 [BERT 멀티라벨 분석 결과]
 {bert_summary}
 {stt_summary}
-{weakness_summary}
-{evolution_summary}
 
 
 [요구사항]
 1. 먼저 이번 면접 답변 자체에 대한 평가를 작성하세요. (논리, 전달력, 표현, 말투 등)
 2. 각 질문에 대해, 지원자의 답변이 질문 의도에 얼마나 적합한지 '내용 측면'에서 평가하세요.
 3. BERT 결과와 STT 메트릭을 활용하여 구체적인 개선 포인트를 제시하세요.
-4. Chroma 기반 장기 패턴(약점, 변화 추세)이 제공된 경우,
-    "이 사용자는 평소에 어떤 경향이 있는지"까지 함꼐 설명하세요.
-5. 전체 요약, 구체적인 문제점, 개선 방법, 연습 방향을 섹션별로 나누어 JSON 포맷으로 반환하세요.
+4. 전체 요약, 구체적인 문제점, 개선 방법, 연습 방향을 섹션별로 나누어 JSON 포맷으로 반환하세요.
 
 
 [분석 가이드]
 당신은 위 텍스트와 BERT 결과를 바탕으로, 아래 3가지 항목에 대해 0~100점 척도로 평가하고 구체적인 피드백을 제공해야 합니다.
-
+모든 score는 0~100 정수로만 제공하세요. 등급(grade)은 자동으로 변환됩니다.
+- 90~100점 : S등급
+- 80~89점 : A등급
+- 70~79점 : B등급
+- 60~69점 : C등급
+- 0~59점 : D등급
 
 [세부 규칙]
 1. 각 항목의 의미
@@ -109,14 +85,14 @@ def build_prompt(
     - "discourse_clarity":
         - 문장 구조가 어수선한지, 말이 빙빙 도는지, 앞뒤가 모호한지,
           그리고 면접 상황에 맞는 격식을 유지하고 있는지 등을 평가합니다.
-        - BERT 결과 중 "formality inconsistency", "disfluncy/repetition", "vague", "ending_da"를 참고하세요.
+        - BERT 결과 중 "formality_inconsistency", "disfluency_repetition", "vague", "ending_da"를 참고하세요.
     
     
-    - non_standard 점수를 정할 때는, BERT 라벨 중 "slang", "biased", "curse"의 label과 score를 우선적으로 반영하세요.
-    - filler_words 점수를 정할 때는 BERT 라벨 "filler"만을 가장 중요하게 반영하세요.
-    - discourse_clarity 점수를 정할 때는 "formality inconsistency", "disfluency/repetition", "vague", "ending_da" 네 가지를 종합적으로 고려하세요.
+    - non_standard 점수 결정 시, BERT 라벨 중 "slang", "biased", "curse"의 label과 score를 우선적으로 반영하세요.
+    - filler_words 점수를 정할 때는 BERT 라벨 중 "filler"만을 가장 중요하게 반영하세요.
+    - discourse_clarity 점수를 결정할 때 "formality_inconsistency", "disfluency_repetition", "vague", "ending_da" 네 가지를 종합적으로 고려하세요.
 
-2. score(0~100점 정수)
+2. score(0~100점 정수) - 문제 심각도 점수(높을수록 문제가 심함)
     - 0~20 : 문제 없음
     - 21~40 : 아주 약한 정도로 존재
     - 41~60 : 약하게 존재
@@ -127,6 +103,8 @@ def build_prompt(
     - BERT에서 label=1이고 score 높을수록, 해당 항목의 score를 높게 책정하세요.
     - BERT에서 label=0인 항목은 score를 60 이상으로 주지 마세요.
     - 텍스트를 직접 읽고 보정할 수 있지만, BERT의 신호를 기본값으로 존중해야 합니다.
+    - 터무니 없이 BERT 라벨 결과가 틀렸을 경우, score를 조정해주세요.
+        - 예시 : 욕설이 아예 없는 문장임에도 curse=1일 경우
 
 4. 예시/근거
     - "detected_examples"에는 실제 문장 말투 일부 또는 표현을 그대로 넣으세요.
@@ -141,7 +119,7 @@ def build_prompt(
     - 감정, 발음, 말 속도, 억양 등 음성 기반 특징은 절대 추론하지 마세요.
     - 제공된 텍스트와 BERT 결과에 없는 정보는 추가로 지어내지 마세요.
     - JSON 이외의 다른 텍스트는 절대 출력하지 마세요.
-    - JSON 필드명, 계층 구조, 자료형을 반드시 지키세요,
+    - JSON 필드명, 계층 구조, 자료형을 반드시 지키세요.
 
 추가로 'content' 영역에 대해 아래 형식으로 평가하세요.
 - content.overall.score : 전체 답변의 내용 적절성(0~100)
@@ -202,6 +180,9 @@ def build_prompt(
         "score": <0~100 정수>,
         "comment": "<이 답변이 왜 적절/부적절했는지 내용 중심 설명>",
         "suggestion": "<어떻게 말하면 더 좋았을지>",
+        "question_intent": "<질문의 의도를 한 문장으로 요약>",
+        "is_appropriate": <true 또는 false, 답변이 질문 의도에 맞는지>,
+        "evidence_sentences": ["<근거가 되는 사용자 답변 문장1>", "<근거가 되는 사용자 답변 문장2>"]
         }}
     ],
 

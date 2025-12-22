@@ -99,12 +99,13 @@ class CBERTResult(Base):
     c_sr_id: Mapped[int] = mapped_column(Integer, ForeignKey('c_stt_results.c_sr_id', ondelete='CASCADE'), nullable=False)
 
     target_speaker: Mapped[str] = mapped_column(String(20), nullable=False, default="1")
-    curse_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    filler_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    standard_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    curse: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 0 or 1
+    filler: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 0 or 1
+    biased: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 0 or 1
+    slang: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 0 or 1
     analyzed_segments: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-    
+
     communication: Mapped["Communication"] = relationship("Communication", back_populates="bert_result")
     result: Mapped[Optional["CResult"]] = relationship("CResult", back_populates="bert_result", uselist=False, cascade="all, delete-orphan")
 

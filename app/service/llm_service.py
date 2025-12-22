@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from app.core.settings import settings
 from app.prompts.interview_prompts import build_prompt, SYSTEM_MESSAGE
 from app.database.schemas.interview import I_Report
+from app.service.grade_utils import score_to_grade
 
 
 
@@ -18,8 +19,6 @@ class OpenAIService:
             transcript:str, 
             bert_analysis:Dict,
             stt_metrics:Optional[Dict[str, Any]]=None,
-            weakness_pattern:Optional[Dict[str, Any]]=None,
-            evolution_insights:Optional[Dict[str, Any]]=None,
             qa_list:Optional[List[Dict[str, Any]]]=None,
             )->I_Report:
 
@@ -27,8 +26,6 @@ class OpenAIService:
                  transcript=transcript,
                  bert_analysis=bert_analysis,
                  stt_metrics=stt_metrics,
-                 weakness_patterns=weakness_pattern,
-                 evolution_insights=evolution_insights,
                  qa_list=qa_list
             )
             response=await self.client.chat.completions.create(
@@ -44,7 +41,19 @@ class OpenAIService:
             content=response.choices[0].message.content
         
             try:
-                return I_Report.model_validate_json(content)
+                report=I_Report.model_validate_json(content)
+
+                report.non_standard.grade=score_to_grade(report.non_standard.score)
+                report.filler_words.grade=score_to_grade(report.filler_words.score)
+                report.discourse_clarity.grade=score_to_grade(report.discourse_clarity.score)
+
+                report.content_overall.grade=score_to_grade(report.content_overall.score)
+
+                for per_q in report.content_per_question:
+                     per_q.grade=score_to_grade(per_q.score)
+
+                return report
+                
             except ValidationError as e:
                 raise ValueError(f"I_Report 검증 실패 : {e}")
         

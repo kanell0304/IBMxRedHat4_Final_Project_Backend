@@ -30,13 +30,19 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
     # BERT 결과 포맷팅
     bert_info = ""
     if bert_result:
-        curse_count = bert_result.get("curse", 0)
-        filler_count = bert_result.get("filler", 0)
+        curse = bert_result.get("curse", 0)
+        filler = bert_result.get("filler", 0)
+        biased = bert_result.get("biased", 0)
+        slang = bert_result.get("slang", 0)
+
         bert_info = f"""
 [BERT 분석 결과]
-- 욕설 감지 횟수: {curse_count}회
-- 필러 감지 횟수: {filler_count}회
-(중요: sentence_feedbacks에서 curse와 filler 카테고리의 총 개수는 위 횟수와 정확히 일치해야 합니다)
+- 욕설: {"감지됨" if curse == 1 else "감지 안됨"}
+- 군말/망설임: {"감지됨" if filler == 1 else "감지 안됨"}
+- 편향: {"감지됨" if biased == 1 else "감지 안됨"}
+- 비표준어: {"감지됨" if slang == 1 else "감지 안됨"}
+
+위 결과는 참고용입니다. 실제 개수와 발생 위치는 텍스트를 직접 분석하여 정확하게 계산하세요.
 """
 
     prompt = f"""
@@ -84,18 +90,33 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
    - 문장 완성도는 종결어미 유무, 문맥의 완결성을 종합적으로 판단
 
 6. curse (욕설)
-   - BERT가 감지한 욕설 개수와 정확히 일치하도록 문장 선택
-   - 욕설이나 비속어가 포함된 문장 식별
+   - 텍스트를 분석하여 욕설이나 비속어가 포함된 문장을 식별
+   - count: 욕설이 포함된 문장의 총 개수
+   - detected_examples: 욕설이 포함된 문장의 인덱스 배열
 
-7. filler (필러)
-   - BERT가 감지한 필러 개수와 정확히 일치하도록 문장 선택
-   - "음", "어", "그", "뭐" 등 의미 없는 말버릇 식별
+7. filler (군말/망설임)
+   - 텍스트를 분석하여 의미 없는 말버릇을 식별
+   - 예: "음", "어", "그", "뭐", "아", "저기" 등
+   - count: 군말/망설임이 포함된 문장의 총 개수
+   - detected_examples: 군말/망설임이 포함된 문장의 인덱스 배열
 
-8. summary (종합 요약)
+8. biased (편향)
+   - 텍스트를 분석하여 편향적이거나 차별적인 표현을 식별
+   - 예: 성별/나이/지역 등에 대한 편견, 고정관념이 담긴 표현
+   - count: 편향적 표현이 포함된 문장의 총 개수
+   - detected_examples: 편향 표현이 포함된 문장의 인덱스 배열
+
+9. slang (비표준어)
+   - 텍스트를 분석하여 비표준어나 은어를 식별
+   - 예: 줄임말, 신조어, 인터넷 용어, 방언 등
+   - count: 비표준어가 포함된 문장의 총 개수
+   - detected_examples: 비표준어가 포함된 문장의 인덱스 배열
+
+10. summary (종합 요약)
    - 전반적인 커뮤니케이션 능력 평가를 5-7문장으로 작성
    - 강점과 개선점을 균형있게 서술
 
-9. advice (개선 조언)
+11. advice (개선 조언)
    - 구체적이고 실천 가능한 개선 방법을 5-7문장으로 작성
    - 우선순위가 높은 항목부터 제시
 
@@ -112,8 +133,11 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
 4. sentence_feedbacks에는 각 문장별 구체적인 피드백을 작성하세요.
    - 분석 대상 화자의 문장에만 피드백 추가
    - 각 피드백은 간결한 한 줄 요약 형식 (예: "너무 빠름", "'음' 사용")
-   - curse와 filler의 총 개수는 BERT 결과와 정확히 일치해야 함
    - 문제가 없는 문장은 sentence_feedbacks에 포함하지 않음
+
+5. curse, filler, biased, slang의 count 값을 정확히 계산하세요.
+   - count: 해당 문제가 포함된 문장의 총 개수
+   - detected_examples의 배열 길이와 count 값이 일치해야 함
 
 [제한 사항]
 - 제공된 타임스탬프와 텍스트에 기반하여 분석하세요
@@ -155,12 +179,26 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
         "improvement": "<개선 방법>"
     }},
     "curse": {{
+        "count": <int, 욕설이 포함된 문장 개수>,
         "detected_examples": [1],
         "reason": "<판단 근거>",
         "improvement": "<개선 방법>"
     }},
     "filler": {{
+        "count": <int, 군말/망설임이 포함된 문장 개수>,
         "detected_examples": [0, 3],
+        "reason": "<판단 근거>",
+        "improvement": "<개선 방법>"
+    }},
+    "biased": {{
+        "count": <int, 편향 표현이 포함된 문장 개수>,
+        "detected_examples": [],
+        "reason": "<판단 근거>",
+        "improvement": "<개선 방법>"
+    }},
+    "slang": {{
+        "count": <int, 비표준어가 포함된 문장 개수>,
+        "detected_examples": [2],
         "reason": "<판단 근거>",
         "improvement": "<개선 방법>"
     }},
@@ -188,7 +226,9 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
 
 
 SYSTEM_MESSAGE = """당신은 커뮤니케이션 능력 평가 전문가입니다.
-화자의 발화를 분석하여 발화 속도, 발음, 의미 명료도, 침묵 패턴, 말 끊기, 욕설, 필러 등을 평가하고 구조화된 피드백을 제공합니다.
+화자의 발화를 분석하여 발화 속도, 발음, 의미 명료도, 침묵 패턴, 말 끊기, 욕설, 군말/망설임, 편향, 비표준어 등을 평가하고 구조화된 피드백을 제공합니다.
 타임스탬프 정보를 활용하여 정량적 지표를 계산하고, 텍스트 분석을 통해 정성적 평가를 수행합니다.
 항상 JSON 형식으로만 응답하며, 객관적이고 구체적인 조언을 제공합니다.
-detected_examples에는 반드시 Sentence 인덱스 번호(정수)만 반환해야 하고, sentence_feedbacks에는 각 문장별 간결한 피드백 메시지를 제공해야 합니다."""
+detected_examples에는 반드시 Sentence 인덱스 번호(정수)만 반환해야 하고, sentence_feedbacks에는 각 문장별 간결한 피드백 메시지를 제공해야 합니다.
+
+허용되는 category 값: speaking_speed, silence, clarity, meaning_clarity, cut, curse, filler, biased, slang"""

@@ -33,6 +33,15 @@ class CommunityCRUD:
 
         return result.scalar_one_or_none()
 
+    # 카테고리 삭제
+    @staticmethod
+    async def delete_category(db: AsyncSession, category_id: int) -> bool:
+        result = await db.execute(
+            delete(CommunityCategory).where(CommunityCategory.category_id == category_id)
+        )
+        await db.commit()
+        return result.rowcount > 0
+
     # 게시글 생성
     @staticmethod
     async def create_post(db: AsyncSession, user_id: int, category_id: int, title: str, content: str) -> CommunityPost:

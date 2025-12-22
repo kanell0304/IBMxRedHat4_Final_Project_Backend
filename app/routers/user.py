@@ -237,3 +237,9 @@ async def delete_profile_image(
 ):
     user = await UserService.delete_profile_image(db, current_user.user_id)
     return UserReadWithProfile.from_user(user, base_url="")
+
+# 유저 삭제 (관리용)
+@router.delete("/{user_id}", status_code=status.HTTP_200_OK)
+async def del_user_by_id(user_id: int, db: AsyncSession = Depends(get_db)):
+    msg = await UserService.delete_user(db, user_id)
+    return msg
