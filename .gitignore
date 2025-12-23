@@ -2,25 +2,50 @@
 .env.local
 .env.*.local
 *.env
+spageti-stt-de1456d6a2c0.json
+
+app/ml_models/*.pkl
 
 backend/.env
 backend/.env.local
-backend/__pycache__/
-backend/*.pyc
 backend/venv/
 backend/.venv/
 backend/env/
+.venv/
+venv/
+env/
 
 .vscode/
 .idea/
+.fleet/
 *.swp
 *.swo
 
 .DS_Store
+.AppleDouble
+.LSOverride
 Thumbs.db
+desktop.ini
 
 *.log
 
 *.db
 *.sqlite
 *.sqlite3
+chroma_db/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.tox/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+
+app/ml_models/*.pkl
+!app/ml_models/__init__.py
