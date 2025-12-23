@@ -221,11 +221,19 @@ async def get_communication_detail(c_id: int, db: AsyncSession = Depends(get_db)
     # [수정] standard_score 계산 및 slang 통합 (DB 컬럼 삭제 대응)
     if response.bert_result:
         b = response.bert_result
-        
-        # 1. 점수 계산 (원본 데이터 사용)
-        score = (b.slang + b.biased + b.curse) / 3.0
-        b.standard_score = score
-        
+
+        # 1. 점수 계산 (4개 지표 모두 포함)
+        # 각 지표는 카운트 값이므로, 총합을 구한 후 최대값으로 나눠서 0~1 범위로 정규화
+        total_issues = b.slang + b.biased + b.curse + b.filler
+        max_possible = 4  # 각 지표가 1번씩만 발생한다고 가정한 최대값
+
+        # 문제가 적을수록 높은 점수 (10점 만점)
+        if total_issues == 0:
+            b.standard_score = 10.0
+        else:
+            # 문제 개수에 따라 감점 (1개당 -2.5점)
+            b.standard_score = max(0.0, 10.0 - (total_issues * 2.5))
+
         # 2. [Fix] 프론트엔드 '욕설' 그래프에 '비속어(slang)'도 포함
         # 피드백에서 slang을 curse로 통합했으므로, 표시되는 카운트도 합산
         b.curse = b.curse + b.slang
