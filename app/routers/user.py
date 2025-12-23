@@ -65,8 +65,8 @@ async def login_for_user(response: Response, user: OAuth2PasswordRequestForm = D
         key="access_token",
         value=result["access_token"],
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=1500 * 60,
     )
     
@@ -74,8 +74,8 @@ async def login_for_user(response: Response, user: OAuth2PasswordRequestForm = D
         key="refresh_token",
         value=result["refresh_token"],
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=604800,
     )
 
@@ -147,8 +147,8 @@ async def refresh_token(response: Response,  refresh_token: Optional[str] = Cook
         key="access_token",
         value=new_tokens["access_token"],
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=1500 * 60,
     )
     
@@ -184,8 +184,8 @@ async def kakao_login(request: KakaoCallbackRequest, response: Response, db: Asy
         key="access_token",
         value=result["access_token"],
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=1500 * 60,
     )
     
@@ -193,8 +193,8 @@ async def kakao_login(request: KakaoCallbackRequest, response: Response, db: Asy
         key="refresh_token",
         value=result["refresh_token"],
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=604800,
     )
 
