@@ -2,7 +2,7 @@ name: Deploy to AWS
 
 on:
   push:
-    branches: [develop_presentation]
+    branches: [main]
   workflow_dispatch:  # 수동 실행 가능
 
 env:
@@ -102,12 +102,28 @@ jobs:
               -p 8081:8081 \
               -e S3_MODEL_BUCKET=$S3_MODEL_BUCKET \
               -e S3_MODEL_PREFIX= \
-              -e AWS_REGION=$AWS_REGION \
+              -e AWS_REGION=ap-northeast-2 \
               -e DB_HOST=${{ secrets.DB_HOST }} \
               -e DB_PORT=${{ secrets.DB_PORT }} \
               -e DB_NAME=${{ secrets.DB_NAME }} \
               -e DB_USER=${{ secrets.DB_USER }} \
               -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              -e ALLOWED_ORIGINS="${{ secrets.ALLOWED_ORIGINS }}" \
+              -e SECRET_KEY="${{ secrets.SECRET_KEY }}" \
+              -e JWT_ALGORITHM=HS256 \
+              -e ACCESS_TOKEN_EXPIRE=6000 \
+              -e REFRESH_TOKEN_EXPIRE=604800 \
+              -e GMAIL_USER="${{ secrets.GMAIL_USER }}" \
+              -e GMAIL_APP_PASSWORD="${{ secrets.GMAIL_APP_PASSWORD }}" \
+              -e FRONTEND_URL="${{ secrets.FRONTEND_URL }}" \
+              -e KAKAO_CLIENT_ID="${{ secrets.KAKAO_CLIENT_ID }}" \
+              -e KAKAO_CLIENT_SECRET="" \
+              -e KAKAO_REDIRECT_URI="${{ secrets.KAKAO_REDIRECT_URI }}" \
+              -e GOOGLE_CLOUD_PROJECT_ID=spageti-stt \
+              -e GOOGLE_APPLICATION_CREDENTIALS=./spageti-stt-de1456d6a2c0.json \
+              -e LLM_PROVIDER=openai \
+              -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+              -e OPENAI_MODEL=gpt-4o-mini \
               $ECR_REGISTRY/$ECR_REPOSITORY:latest
             
             # 상태 확인
