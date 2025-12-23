@@ -138,8 +138,9 @@ class UserCrud:
     # 모든 유저 조회
     @staticmethod
     async def get_all_user(db: AsyncSession) -> List[User]:
-
-        result = await db.execute(select(User))
+        result = await db.execute(
+            select(User).options(selectinload(User.roles))
+        )
 
         return result.scalars().all()
 
