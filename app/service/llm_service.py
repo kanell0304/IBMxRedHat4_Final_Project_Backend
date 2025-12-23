@@ -39,21 +39,36 @@ class OpenAIService:
             )
 
             content=response.choices[0].message.content
-        
+
             try:
-                report=I_Report.model_validate_json(content)
+                # 먼저 dict로 파싱
+                import json
+                data = json.loads(content)
 
-                report.non_standard.grade=score_to_grade(report.non_standard.score)
-                report.filler_words.grade=score_to_grade(report.filler_words.score)
-                report.discourse_clarity.grade=score_to_grade(report.discourse_clarity.score)
+                # grade 필드 추가
+                if "non_standard" in data and "score" in data["non_standard"]:
+                    data["non_standard"]["grade"] = score_to_grade(data["non_standard"]["score"])
 
-                report.content_overall.grade=score_to_grade(report.content_overall.score)
+                if "filler_words" in data and "score" in data["filler_words"]:
+                    data["filler_words"]["grade"] = score_to_grade(data["filler_words"]["score"])
 
-                for per_q in report.content_per_question:
-                     per_q.grade=score_to_grade(per_q.score)
+                if "discourse_clarity" in data and "score" in data["discourse_clarity"]:
+                    data["discourse_clarity"]["grade"] = score_to_grade(data["discourse_clarity"]["score"])
 
+                if "content_overall" in data and "score" in data["content_overall"]:
+                    data["content_overall"]["grade"] = score_to_grade(data["content_overall"]["score"])
+
+                if "content_per_question" in data:
+                    for per_q in data["content_per_question"]:
+                        if "score" in per_q:
+                            per_q["grade"] = score_to_grade(per_q["score"])
+
+                # 이제 Pydantic 모델로 검증
+                report = I_Report.model_validate(data)
                 return report
-                
+
             except ValidationError as e:
                 raise ValueError(f"I_Report 검증 실패 : {e}")
+            except json.JSONDecodeError as e:
+                raise ValueError(f"JSON 파싱 실패 : {e}")
         

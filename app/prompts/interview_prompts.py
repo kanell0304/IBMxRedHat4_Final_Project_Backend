@@ -34,7 +34,7 @@ def build_prompt(
             q=item.get("question", "")
             a=item.get("answer", "")
             qa_lines.append(f"Q{idx}. {q}\nA{idx}. {a}\n")
-        qa_block="\n[질문별 Q/A 목록]\n"+"\n".join(qa_lines)
+        qa_block="\n".join(qa_lines)
 
 
 
