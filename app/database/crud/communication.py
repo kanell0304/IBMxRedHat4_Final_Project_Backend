@@ -139,9 +139,10 @@ async def create_bert_result(
     c_id: int,
     c_sr_id: int,
     target_speaker: str,
-    curse_count: int,
-    filler_count: int,
-    standard_score: float,
+    curse: int,
+    filler: int,
+    biased: int,
+    slang: int,
     analyzed_segments: dict,
 ) -> CBERTResult:
 
@@ -149,9 +150,10 @@ async def create_bert_result(
         c_id=c_id,
         c_sr_id=c_sr_id,
         target_speaker=target_speaker,
-        curse_count=curse_count,
-        filler_count=filler_count,
-        standard_score=standard_score,
+        curse=curse,
+        filler=filler,
+        biased=biased,
+        slang=slang,
         analyzed_segments=analyzed_segments,
     )
     db.add(bert_result)

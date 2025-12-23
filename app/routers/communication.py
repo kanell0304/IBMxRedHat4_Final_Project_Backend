@@ -57,6 +57,18 @@ async def process_stt(
 
     chirp_result = await stt_service.transcribe_chirp(wav_data)
 
+    # 기존 STT 결과가 있다면 삭제 (재시도 지원)
+    # create_stt_result 내부에서 commit을 수행하므로, 여기서 미리 삭제하고 commit해야 UniqueConstraint 에러 방지
+    try:
+        existing_stt = await crud.get_stt_result_by_c_id(db, c_id)
+        if existing_stt:
+            print(f"Deleting existing STT result for c_id={c_id}")
+            await db.delete(existing_stt)
+            await db.commit()
+    except Exception as e:
+        print(f"Error deleting existing STT result: {e}")
+        await db.rollback()
+
     stt = await crud.create_stt_result(
         db=db,
         c_id=c_id,
@@ -123,22 +135,23 @@ async def analyze_communication(
     )
 
     # 6. BERT 결과 저장 (c_bert_results)
-    curse_count = bert_result.get("curse", 0)
-    filler_count = bert_result.get("filler", 0)
-    standard_score = (
-        bert_result.get("slang", 0)
-        + bert_result.get("biased", 0)
-        + bert_result.get("curse", 0)
-    ) / 3.0
+    # 6. BERT 결과 저장 (c_bert_results)
+    curse = bert_result.get("curse", 0)
+    filler = bert_result.get("filler", 0)
+    biased = bert_result.get("biased", 0)
+    slang = bert_result.get("slang", 0)
+    
+    # standard_score 제거됨 (모델 변경 대응)
 
     bert_db_result = await crud.create_bert_result(
         db=db,
         c_id=c_id,
         c_sr_id=stt_result.c_sr_id,
         target_speaker=target_speaker,
-        curse_count=curse_count,
-        filler_count=filler_count,
-        standard_score=standard_score,
+        curse=curse,
+        filler=filler,
+        biased=biased,
+        slang=slang,
         analyzed_segments=bert_result,
     )
 
@@ -183,8 +196,11 @@ async def get_communication_detail(c_id: int, db: AsyncSession = Depends(get_db)
     if not communication:
         raise HTTPException(status_code=404, detail="Communication not found")
 
+    # Pydantic 모델로 변환하여 데이터 가공
+    response = CommunicationDetailResponse.model_validate(communication)
+
     # detected_examples의 sentence_index를 실제 문장으로 변환
-    if communication.result and communication.script_sentences:
+    if response.result and communication.script_sentences:
         # sentence_index -> text 매핑 생성
         sentence_map = {s.sentence_index: s.text for s in communication.script_sentences}
 
@@ -193,16 +209,28 @@ async def get_communication_detail(c_id: int, db: AsyncSession = Depends(get_db)
                        'clarity_json', 'meaning_clarity_json', 'cut_json']
 
         for field_name in json_fields:
-            json_data = getattr(communication.result, field_name, None)
+            json_data = getattr(response.result, field_name, None)
             if json_data and isinstance(json_data, dict):
                 detected = json_data.get('detected_examples', [])
                 if detected:
-                    # sentence_index를 문장 텍스트로 변환
+                    # sentence_index를 문장 텍스트로 변환 (리스트 컴프리헨션)
                     json_data['detected_examples'] = [
                         sentence_map.get(idx, f"문장 {idx}") for idx in detected
                     ]
 
-    return communication
+    # [수정] standard_score 계산 및 slang 통합 (DB 컬럼 삭제 대응)
+    if response.bert_result:
+        b = response.bert_result
+        
+        # 1. 점수 계산 (원본 데이터 사용)
+        score = (b.slang + b.biased + b.curse) / 3.0
+        b.standard_score = score
+        
+        # 2. [Fix] 프론트엔드 '욕설' 그래프에 '비속어(slang)'도 포함
+        # 피드백에서 slang을 curse로 통합했으므로, 표시되는 카운트도 합산
+        b.curse = b.curse + b.slang
+
+    return response
 
 
 @router.get("/users/{user_id}/communications", response_model=list[CommunicationResponse])

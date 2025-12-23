@@ -1,7 +1,7 @@
 from typing import Dict, List
 
 
-def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, bert_result: Dict = None):
+def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, bert_result: Dict = None, bert_sentence_results: Dict = None):
     """
     Communication 분석용 프롬프트 생성
 
@@ -10,6 +10,7 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
         stt_data: STT 원본 데이터 (단어 단위 타임스탬프 포함)
         target_speaker: 분석 대상 화자 (예: "1")
         bert_result: BERT 분석 결과 (curse_count, filler_count 포함)
+        bert_sentence_results: 문장별 BERT 분석 결과 (sentence_index -> issue list)
     """
 
     # target_speaker의 문장만 필터링
@@ -18,11 +19,19 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
     # 문장 포맷팅 (sentence_index 명확하게 표시)
     formatted_sentences = []
     for sent in target_sentences:
+        text_content = sent['text']
+        
+        # BERT 감지 결과 추가
+        if bert_sentence_results and sent['sentence_index'] in bert_sentence_results:
+            issues = bert_sentence_results[sent['sentence_index']]
+            if issues:
+                text_content += f" [BERT 감지: {', '.join(issues)}]"
+
         formatted_sentences.append(
             f"### Sentence [{sent['sentence_index']}] ###\n"
             f"Speaker: {sent['speaker_label']}\n"
             f"Time: {sent['start_time']} - {sent['end_time']}\n"
-            f"Text: {sent['text']}\n"
+            f"Text: {text_content}\n"
         )
 
     sentences_text = "\n".join(formatted_sentences)
@@ -30,19 +39,18 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
     # BERT 결과 포맷팅
     bert_info = ""
     if bert_result:
-        curse = bert_result.get("curse", 0)
-        filler = bert_result.get("filler", 0)
-        biased = bert_result.get("biased", 0)
-        slang = bert_result.get("slang", 0)
-
+        curse_count = bert_result.get("curse", 0)
+        filler_count = bert_result.get("filler", 0)
+        biased_count = bert_result.get("biased", 0)
+        slang_count = bert_result.get("slang", 0)
+        
         bert_info = f"""
 [BERT 분석 결과]
-- 욕설: {"감지됨" if curse == 1 else "감지 안됨"}
-- 군말/망설임: {"감지됨" if filler == 1 else "감지 안됨"}
-- 편향: {"감지됨" if biased == 1 else "감지 안됨"}
-- 비표준어: {"감지됨" if slang == 1 else "감지 안됨"}
-
-위 결과는 참고용입니다. 실제 개수와 발생 위치는 텍스트를 직접 분석하여 정확하게 계산하세요.
+- 욕설 감지 횟수: {curse_count}회
+- 차별/비하 발언 감지 횟수: {biased_count}회
+- 필러 감지 횟수: {filler_count}회
+- 비표준어(Slang) 감지 횟수: {slang_count}회
+(중요: sentence_feedbacks에서 위 4가지 카테고리의 총 개수는 위 횟수와 정확히 일치해야 합니다)
 """
 
     prompt = f"""
@@ -90,27 +98,20 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
    - 문장 완성도는 종결어미 유무, 문맥의 완결성을 종합적으로 판단
 
 6. curse (욕설)
-   - 텍스트를 분석하여 욕설이나 비속어가 포함된 문장을 식별
-   - count: 욕설이 포함된 문장의 총 개수
-   - detected_examples: 욕설이 포함된 문장의 인덱스 배열
+   - BERT가 감지한 욕설 개수와 정확히 일치하도록 문장 선택
+   - 욕설이나 비속어가 포함된 문장 식별
 
-7. filler (군말/망설임)
-   - 텍스트를 분석하여 의미 없는 말버릇을 식별
-   - 예: "음", "어", "그", "뭐", "아", "저기" 등
-   - count: 군말/망설임이 포함된 문장의 총 개수
-   - detected_examples: 군말/망설임이 포함된 문장의 인덱스 배열
+7. biased (차별/비하)
+   - BERT가 감지한 차별/비하 발언 개수와 정확히 일치하도록 문장 선택
+   - 장애인 비하, 혐오 표현, 차별적 언어가 포함된 문장 식별
 
-8. biased (편향)
-   - 텍스트를 분석하여 편향적이거나 차별적인 표현을 식별
-   - 예: 성별/나이/지역 등에 대한 편견, 고정관념이 담긴 표현
-   - count: 편향적 표현이 포함된 문장의 총 개수
-   - detected_examples: 편향 표현이 포함된 문장의 인덱스 배열
+8. filler (필러)
+   - BERT가 감지한 필러 개수와 정확히 일치하도록 문장 선택
+   - "음", "어", "그", "뭐" 등 의미 없는 말버릇 식별
 
 9. slang (비표준어)
-   - 텍스트를 분석하여 비표준어나 은어를 식별
-   - 예: 줄임말, 신조어, 인터넷 용어, 방언 등
-   - count: 비표준어가 포함된 문장의 총 개수
-   - detected_examples: 비표준어가 포함된 문장의 인덱스 배열
+   - BERT가 감지한 비표준어 개수와 정확히 일치하도록 문장 선택
+   - 줄임말, 신조어, 인터넷 용어, 방언 등 식별
 
 10. summary (종합 요약)
    - 전반적인 커뮤니케이션 능력 평가를 5-7문장으로 작성
@@ -184,6 +185,7 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
         "reason": "<판단 근거>",
         "improvement": "<개선 방법>"
     }},
+
     "filler": {{
         "count": <int, 군말/망설임이 포함된 문장 개수>,
         "detected_examples": [0, 3],

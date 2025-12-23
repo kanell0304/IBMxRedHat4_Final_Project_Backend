@@ -47,9 +47,11 @@ class BERTResultResponse(BaseModel):
     c_id: int
     c_sr_id: int
     target_speaker: str
-    curse_count: int
-    filler_count: int
-    standard_score: Optional[float]
+    curse: int
+    filler: int
+    biased: int
+    slang: int
+    standard_score: Optional[float] = None
     analyzed_segments: Optional[dict]
     created_at: datetime
 
