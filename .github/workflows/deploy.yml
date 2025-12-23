@@ -95,11 +95,19 @@ jobs:
             # 새 이미지 풀
             docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
             
+            # Google Cloud 인증 파일 생성
+            echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > /tmp/google-creds.json
+            
+            # ChromaDB 디렉토리 생성
+            mkdir -p /home/ec2-user/chroma_db
+            
             # 컨테이너 실행
             docker run -d \
               --name teamproject-backend \
               --restart unless-stopped \
               -p 8081:8081 \
+              -v /tmp/google-creds.json:/app/google-creds.json:ro \
+              -v /home/ec2-user/chroma_db:/app/chroma_db \
               -e S3_MODEL_BUCKET=$S3_MODEL_BUCKET \
               -e S3_MODEL_PREFIX= \
               -e AWS_REGION=ap-northeast-2 \
@@ -120,7 +128,7 @@ jobs:
               -e KAKAO_CLIENT_SECRET="" \
               -e KAKAO_REDIRECT_URI="${{ secrets.KAKAO_REDIRECT_URI }}" \
               -e GOOGLE_CLOUD_PROJECT_ID=spageti-stt \
-              -e GOOGLE_APPLICATION_CREDENTIALS=./spageti-stt-de1456d6a2c0.json \
+              -e GOOGLE_APPLICATION_CREDENTIALS=/app/google-creds.json \
               -e LLM_PROVIDER=openai \
               -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
               -e OPENAI_MODEL=gpt-4o-mini \
