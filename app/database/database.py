@@ -136,6 +136,52 @@ def create_tables():
                 session.commit()
                 print(f"기본 Role {created}건 추가")
 
+        # 기본 관리자 계정 생성
+        from app.database.models.user import User
+        from app.database.models.user_roles import UserRoles
+        from app.core.security import hash_password
+
+        admin_email = "admin@steach.com"
+        admin_password = "admin"
+
+        with Session(sync_engine) as session:
+            admin_user = session.query(User).filter_by(email=admin_email).first()
+            created_admin = False
+
+            if not admin_user:
+                admin_user = User(
+                    email=admin_email,
+                    username="admin",
+                    nickname="admin",
+                    password=hash_password(admin_password),
+                    phone_number=None,
+                    is_social=0,
+                )
+                session.add(admin_user)
+                session.flush()  # user_id 확보
+                created_admin = True
+            else:
+                # 요청된 자격 증명으로 맞춰둔다
+                admin_user.username = "admin"
+                admin_user.nickname = "admin"
+                admin_user.password = hash_password(admin_password)
+
+            admin_role = session.query(Roles).filter_by(role_name=RoleEnum.ADMIN).first()
+            if admin_role:
+                has_admin_role = (
+                    session.query(UserRoles)
+                    .filter_by(user_id=admin_user.user_id, role_id=admin_role.id)
+                    .first()
+                )
+                if not has_admin_role:
+                    session.add(UserRoles(user_id=admin_user.user_id, role_id=admin_role.id))
+
+            session.commit()
+            if created_admin:
+                print(f"기본 관리자 계정 생성: {admin_email}")
+            else:
+                print(f"관리자 계정 업데이트 완료: {admin_email}")
+
         print("데이터베이스 테이블 생성")
         
     except Exception as e:
