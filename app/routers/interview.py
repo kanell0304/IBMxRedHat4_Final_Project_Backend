@@ -42,13 +42,95 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
         interview=await crud.get_i(db, i_id)
         if not interview:
             raise HTTPException(status_code=404, detail="모의면접을 찾을 수 없습니다.")
+        
+
+        language=interview.language
+        if language=="en":
+            from app.service.i_en_analysis import analyze_english_interview
+
+            answers=interview.answers
+            if not answers:
+                raise HTTPException(status_code=400, detail="답변이 없습니다.")
+            
+            transcripts=[]
+            qa_list=[]
+
+            for answer in answers:
+                if not answer.transcript:
+                    continue
+                transcripts.append(answer.transcript)
+
+                question=await crud.get_question(db, answer.q_id) if answer.q_id else None
+                qa_list.append({
+                    "question":question.question_text if question else "",
+                    "answer":answer.transcript,
+                    "q_id":answer.q_id,
+                    "answer_id":answer.i_answer_id,
+                })
+
+            if not transcripts:
+                raise HTTPException(status_code=400, detail="처리된 답변이 없습니다.")
+            
+            full_transcript=" ".join(transcripts)
+
+            avg_stt_metrics={
+                "speech_rate":0.0,
+                "pause_ratio":0.0,
+                "filler":{
+                    "hard":0,
+                    "soft":0
+                }
+            }
+
+            valid_count=0
+            for answer in answers:
+                if answer.stt_metrics_json:
+                    avg_stt_metrics["speech_rate"]+=answer.stt_metrics_json.get("speech_rate", 0)
+                    avg_stt_metrics["pause_ratio"]+=answer.stt_metrics_json.get("pause_ratio", 0)
+
+                    filler_data=answer.stt_metrics_json.get("filler", {})
+                    avg_stt_metrics["filler"]["hard"]+=filler_data.get("hard", 0)
+                    avg_stt_metrics["filler"]["soft"]+=filler_data.get("soft", 0)
+                    valid_count+=1
+
+            if valid_count>0:
+                avg_stt_metrics["speech_rate"]=round(avg_stt_metrics["speech_rate"]/valid_count, 2)
+                avg_stt_metrics["pause_ratio"]=round(avg_stt_metrics["pause_ratio"]/valid_count, 3)
+
+            analysis_result=await analyze_english_interview(
+                transcript=full_transcript,
+                stt_metrics=avg_stt_metrics,
+                qa_list=qa_list
+            )
+
+            report_data={
+                "score":analysis_result["score"],
+                "comments":analysis_result["comments"],
+                "stt_metrics":analysis_result["stt_metrics"],
+                "transcript":analysis_result["transcript"]
+            }
+
+            await crud.create_result(
+                db=db,
+                user_id=interview.user_id,
+                i_id=i_id,
+                scope="overall",
+                report=report_data
+            )
+
+            await crud.update_interview(db, i_id, status=2)
+
+            return {
+                "score":analysis_result["score"],
+                "comments":analysis_result["comments"],
+                "stt_metrics":analysis_result["stt_metrics"]
+            }
 
         print(f"[DEBUG] 인터뷰 찾음: {interview.i_id}, user_id={interview.user_id}")
         answers=interview.answers
         if not answers:
             raise HTTPException(status_code=400, detail="답변이 없습니다.")
 
-        print(f"[DEBUG] 답변 개수: {len(answers)}")
         
         transcripts=[]
         bert_labels_list=[]
