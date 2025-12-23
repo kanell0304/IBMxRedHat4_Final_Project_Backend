@@ -26,7 +26,12 @@ async def upload_wav(
     audio_data = await file.read()
     original_format = file.filename.split('.')[-1]
     
-    wav_data, duration = audio_service.convert_to_wav(audio_data, original_format)
+    try:
+        wav_data, duration = audio_service.convert_to_wav(audio_data, original_format)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=f"오디오 변환 실패: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"오디오 처리 중 오류: {str(e)}")
     
     await crud.create_voice_file(
         db=db,
