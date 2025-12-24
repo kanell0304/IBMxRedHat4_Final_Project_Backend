@@ -38,7 +38,6 @@ async def analyze(request:AnalyzeReq, db: AsyncSession = Depends(get_db)):
 @router.post("/{i_id}/analyze_full")
 async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
     try:
-        print(f"[DEBUG] analyze_full 시작: i_id={i_id}")
         interview=await crud.get_i(db, i_id)
         if not interview:
             raise HTTPException(status_code=404, detail="모의면접을 찾을 수 없습니다.")
@@ -126,7 +125,6 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
                 "stt_metrics":analysis_result["stt_metrics"]
             }
 
-        print(f"[DEBUG] 인터뷰 찾음: {interview.i_id}, user_id={interview.user_id}")
         answers=interview.answers
         if not answers:
             raise HTTPException(status_code=400, detail="답변이 없습니다.")
@@ -156,15 +154,11 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
         if not transcripts:
             raise HTTPException(status_code=400, detail="처리된 답변이 없습니다.")
         full_transcript=" ".join(transcripts)
-        print(f"[DEBUG] 전체 답변 길이: {len(full_transcript)}")
 
         bert_analysis=aggregate_bert_labels(bert_labels_list)
-        print(f"[DEBUG] BERT 분석 완료: {list(bert_analysis.keys())}")
 
         stt_metrics=await compute_interview_stt_metrics(i_id, db)
-        print(f"[DEBUG] STT 메트릭 계산 완료: {stt_metrics}")
 
-        print(f"[DEBUG] LLM 리포트 생성 시작...")
         llm_service=OpenAIService()
         report=await llm_service.generate_report(
             transcript=full_transcript,
@@ -172,10 +166,8 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
             stt_metrics=stt_metrics,
             qa_list=qa_list
         )
-        print(f"[DEBUG] LLM 리포트 생성 완료")
 
         # 전체 결과 저장
-        print(f"[DEBUG] 전체 결과 DB 저장 시작...")
         await crud.create_result(
             db=db,
             user_id=interview.user_id,
@@ -183,10 +175,8 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
             scope="overall",
             report=report.model_dump()
         )
-        print(f"[DEBUG] 전체 결과 DB 저장 완료")
 
         # 질문별 개별 결과 저장
-        print(f"[DEBUG] 질문별 결과 저장 시작...")
         if report.content_per_question:
             for per_q in report.content_per_question:
                 q_index=per_q.q_index
@@ -213,21 +203,13 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
                         i_answer_id=answer_id,
                         q_id=q_id,
                     )
-        print(f"[DEBUG] 질문별 결과 저장 완료")
 
-        print(f"[DEBUG] 인터뷰 상태 업데이트 중...")
         await crud.update_interview(db, i_id, status=2)
-        print(f"[DEBUG] analyze_full 완료!")
 
         return report
     except ValueError as e:
-        print(f"[ERROR] ValueError 발생: {e}")
         raise HTTPException(status_code=422, detail=f"{e}")
-
     except Exception as e:
-        print(f"[ERROR] 예상치 못한 에러 발생: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"분석 중 오류 : {e}")
 
 
@@ -476,3 +458,18 @@ async def get_user_metric_changes(
         return await get_metric_changes(db, user_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"지표 변화 분석 중 오류: {e}")
+
+
+# 인터뷰 진행 상태 조회
+@router.get("/{i_id}/status")
+async def get_interview_status(i_id:int, db:AsyncSession=Depends(get_db)):
+    interview=await crud.get_i(db, i_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="인터뷰를 찾을 수 없습니다.")
+    
+    return {
+        "i_id":i_id,
+        "status":interview.status,
+        "current_question":interview.current_question,
+        "total_questions":interview.total_questions,
+    }
