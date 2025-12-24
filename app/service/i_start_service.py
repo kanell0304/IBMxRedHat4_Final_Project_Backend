@@ -107,14 +107,20 @@ def job_questions(job_role: str, language: str) -> List[str]:
     ]
 
 
-async def job_selection_llm(total: int, difficulty: Optional[DifficultyLevel], language: str) -> List[str]:
+async def job_selection_llm(total: int, difficulty: Optional[DifficultyLevel], language: str, job_role: Optional[str]) -> List[str]:
     if not settings.openai_api_key:
         raise ValueError("API 키가 설정 안됨")
+    role_for_prompt = job_role or ("backend developer" if (language or "en").lower() == "en" else "백엔드 개발자")
     client = AsyncOpenAI(api_key=settings.openai_api_key)
     target_total = max(1, total)
     max_len = 30
     diff_text = {DifficultyLevel.EASY: "easy", DifficultyLevel.MID: "mid", DifficultyLevel.HARD: "hard", None: "mixed"}.get(difficulty, "mixed")
-    prompt = f"Generate {target_total} backend interview questions in {language}. Max {max_len} characters per question. No numbering. Difficulty: {diff_text}. Return JSON array of strings."
+    prompt = (
+        f"Generate {target_total} interview questions for a {role_for_prompt} in {language}. "
+        f"Max {max_len} characters per question. No numbering. Difficulty: {diff_text}. "
+        "Return JSON array of strings."
+    )
+    questions_raw: List[str] = []
     try:
         resp = await client.chat.completions.create(
             model=settings.openai_model,
@@ -124,16 +130,31 @@ async def job_selection_llm(total: int, difficulty: Optional[DifficultyLevel], l
             ],
             temperature=0.3,
         )
-        content = resp.choices[0].message.content or "[]"
-        questions = json.loads(content)
-        if not isinstance(questions, list):
-            raise ValueError("LLM 응답이 리스트 형식이 아닙니다.")
+        content = (resp.choices[0].message.content or "").strip()
+        if content:
+            try:
+                questions_raw = json.loads(content)
+            except Exception:
+                start, end = content.find("["), content.rfind("]")
+                if start != -1 and end != -1 and end > start:
+                    try:
+                        questions_raw = json.loads(content[start : end + 1])
+                    except Exception:
+                        pass
     except Exception as e:
-        raise ValueError(f"백엔드 질문 생성 실패: {e}")
+        # LLM 호출/파싱 실패 시에도 진행할 수 있도록 로컬 템플릿으로 대체
+        questions_raw = []
+        error_msg = str(e)
+
+    if not questions_raw:
+        # 최종 파싱 실패 또는 LLM 오류 시 로컬 질문 세트 사용
+        questions_raw = job_questions(role_for_prompt, language)
+        if not questions_raw:
+            raise ValueError(f"백엔드 질문 생성 실패: {error_msg if 'error_msg' in locals() else 'LLM 응답이 비어있습니다.'}")
 
     cleaned: List[str] = []
     seen = set()
-    for q in questions:
+    for q in questions_raw:
         text = str(q).strip().strip('"').strip("'")
         if not text or text in seen:
             continue
@@ -273,9 +294,9 @@ async def load_q(db, question_type: str, category_id: Optional[int], total_quest
     if len(pool) < total_questions:
         raise ValueError("공통/직무 질문 수가 충분하지 않습니다.")
 
-    # 직무 비중 우선: 기본적으로 (총문항-2)개는 직무, 나머지 공통을 목표
+    # 직무 비중 우선: 기본적으로 (총문항-2)개는 직무, 나머지 공통을 목표하되 보유 수량으로 클램프
     target_job = min(len(jobs), max(1, total_questions - 2))
-    target_common = total_questions - target_job
+    target_common = min(len(commons), total_questions - target_job)
 
     selected_jobs = random.sample(jobs, target_job) if target_job > 0 else []
     selected_commons = random.sample(commons, target_common) if target_common > 0 else []
@@ -311,8 +332,8 @@ async def i_start_session(db, payload: I_StartReq) -> I_StartRes:
         use_backend_llm = q_type == "job" and is_llm_job(payload.job_role)
 
         if use_backend_llm:
-            # 백엔드 직무는 LLM으로 즉석 생성
-            q_texts = await job_selection_llm(total_questions, difficulty, language)
+            # 백엔드 직무는 LLM으로 즉석 생성 (파싱 실패 시 로컬 템플릿 사용)
+            q_texts = await job_selection_llm(total_questions, difficulty, language, payload.job_role)
             questions: List[InterviewQuestion] = []
             for text in q_texts:
                 q = InterviewQuestion(
