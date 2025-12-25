@@ -18,7 +18,7 @@ fi
 # ChromaDB 디렉토리 생성
 mkdir -p /app/chroma_db
 
-echo "🚀 FastAPI 서버 시작..."
+echo "🚀 FastAPI 서버 시작...."
 
 # Uvicorn 실행
 exec uvicorn main:app --host 0.0.0.0 --port 8081 --workers 2
