@@ -15,6 +15,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"테이블 생성 실패: {e}")
 
+    try:
+        import os
+        if os.getenv("APP_ENV", "").lower() in {"local", "dev"} and os.getenv("AUTO_SEED", "false").lower() in {"1","true","yes","y"}:
+            from app.seeds.seed_runner import run_seed_if_needed
+            from app.database.database import get_db_session
+
+            db = next(get_db_session())
+            try:
+                run_seed_if_needed(db)
+                print("로컬 DB 시드 완료")
+            finally:
+                db.close()
+    except Exception as e:
+        print(f"로컬 DB 시드 실패: {e}")
+
     # 미니게임 기본 데이터 초기화 추가
     try:
         from app.utils.init_minigame_data import init_default_sentences
@@ -66,6 +81,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 app.include_router(communication.router)

@@ -35,16 +35,100 @@ async def analyze(request:AnalyzeReq, db: AsyncSession = Depends(get_db)):
 
 
 # 인터뷰 전체 종합 분석
-@router.post("/{i_id}/analyze_full", response_model=I_Report)
+@router.post("/{i_id}/analyze_full")
 async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
     try:
         interview=await crud.get_i(db, i_id)
         if not interview:
             raise HTTPException(status_code=404, detail="모의면접을 찾을 수 없습니다.")
         
+
+        language=interview.language
+        if language=="en":
+            from app.service.i_en_analysis import analyze_english_interview
+
+            answers=interview.answers
+            if not answers:
+                raise HTTPException(status_code=400, detail="답변이 없습니다.")
+            
+            transcripts=[]
+            qa_list=[]
+
+            for answer in answers:
+                if not answer.transcript:
+                    continue
+                transcripts.append(answer.transcript)
+
+                question=await crud.get_question(db, answer.q_id) if answer.q_id else None
+                qa_list.append({
+                    "question":question.question_text if question else "",
+                    "answer":answer.transcript,
+                    "q_id":answer.q_id,
+                    "answer_id":answer.i_answer_id,
+                })
+
+            if not transcripts:
+                raise HTTPException(status_code=400, detail="처리된 답변이 없습니다.")
+            
+            full_transcript=" ".join(transcripts)
+
+            avg_stt_metrics={
+                "speech_rate":0.0,
+                "pause_ratio":0.0,
+                "filler":{
+                    "hard":0,
+                    "soft":0
+                }
+            }
+
+            valid_count=0
+            for answer in answers:
+                if answer.stt_metrics_json:
+                    avg_stt_metrics["speech_rate"]+=answer.stt_metrics_json.get("speech_rate", 0)
+                    avg_stt_metrics["pause_ratio"]+=answer.stt_metrics_json.get("pause_ratio", 0)
+
+                    filler_data=answer.stt_metrics_json.get("filler", {})
+                    avg_stt_metrics["filler"]["hard"]+=filler_data.get("hard", 0)
+                    avg_stt_metrics["filler"]["soft"]+=filler_data.get("soft", 0)
+                    valid_count+=1
+
+            if valid_count>0:
+                avg_stt_metrics["speech_rate"]=round(avg_stt_metrics["speech_rate"]/valid_count, 2)
+                avg_stt_metrics["pause_ratio"]=round(avg_stt_metrics["pause_ratio"]/valid_count, 3)
+
+            analysis_result=await analyze_english_interview(
+                transcript=full_transcript,
+                stt_metrics=avg_stt_metrics,
+                qa_list=qa_list
+            )
+
+            report_data={
+                "score":analysis_result["score"],
+                "comments":analysis_result["comments"],
+                "stt_metrics":analysis_result["stt_metrics"],
+                "transcript":analysis_result["transcript"]
+            }
+
+            await crud.create_result(
+                db=db,
+                user_id=interview.user_id,
+                i_id=i_id,
+                scope="overall",
+                report=report_data
+            )
+
+            await crud.update_interview(db, i_id, status=2)
+
+            return {
+                "score":analysis_result["score"],
+                "comments":analysis_result["comments"],
+                "stt_metrics":analysis_result["stt_metrics"]
+            }
+
         answers=interview.answers
         if not answers:
             raise HTTPException(status_code=400, detail="답변이 없습니다.")
+
         
         transcripts=[]
         bert_labels_list=[]
@@ -125,7 +209,6 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
         return report
     except ValueError as e:
         raise HTTPException(status_code=422, detail=f"{e}")
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"분석 중 오류 : {e}")
 
@@ -171,14 +254,30 @@ async def process_answer(answer_id: int, db: AsyncSession = Depends(get_db)):
 async def upload_answer_audio(answer_id: int, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     answer = await crud.get_answer(db, answer_id)
 
+
+    interview=await crud.get_i(db, answer.i_id)
+    language=interview.language
+
     data = await file.read()
     ext = (file.filename.split(".")[-1] if "." in file.filename else "wav") or "wav"
 
     wav_data, duration = AudioService.convert_to_wav(data, ext)
-    stt_service = STTService(project_id=settings.google_cloud_project_id)
-    stt_result = await stt_service.transcribe_chirp(wav_data)
-    transcript = extract_transcript(stt_result)
-    stt_metrics = compute_stt_metrics(stt_result)
+
+
+    if language=="en":
+        from app.service.whisper_stt_service import WhisperSTTService
+        from app.service.en_stt_metrics import compute_en_stt_metrics
+
+        stt_service=WhisperSTTService(model_name="base")
+        stt_result=await stt_service.transcribe_english(wav_data)
+        transcript=extract_transcript(stt_result)
+        stt_metrics=compute_en_stt_metrics(stt_result)
+
+    else:
+        stt_service = STTService(project_id=settings.google_cloud_project_id)
+        stt_result = await stt_service.transcribe_chirp(wav_data)
+        transcript = extract_transcript(stt_result)
+        stt_metrics = compute_stt_metrics(stt_result)
 
     answer.transcript = transcript
     answer.duration_sec = int(round(duration)) if duration is not None else None
@@ -195,20 +294,34 @@ async def upload_answer_audio(answer_id: int, file: UploadFile = File(...), db: 
         stt_metrics=stt_metrics,
     )
 
+
 # 답변 오디오 업로드 + BERT 분석 통합
 @router.post("/answers/{answer_id}/upload_process", response_model=AnswerUploadProcessResponse)
 async def upload_process_answer_audio(answer_id:int, file:UploadFile=File(...), db: AsyncSession = Depends(get_db)):
     answer=await crud.get_answer(db, answer_id)
+
+    interview=await crud.get_i(db, answer.i_id)
+    language=interview.language
 
     data=await file.read()
     ext=(file.filename.split(".")[-1] if "." in file.filename else "wav") or "wav"
 
     # STT 처리
     wav_data, duration=AudioService.convert_to_wav(data, ext)
-    stt_service=STTService(project_id=settings.google_cloud_project_id)
-    stt_result=await stt_service.transcribe_chirp(wav_data)
-    transcript=extract_transcript(stt_result)
-    stt_metrics=compute_stt_metrics(stt_result)
+
+    if language=="en":
+        from app.service.whisper_stt_service import WhisperSTTService
+        from app.service.en_stt_metrics import compute_en_stt_metrics
+
+        stt_service=WhisperSTTService(model_name="base")
+        stt_result=await stt_service.transcribe_english(wav_data)
+        transcript=extract_transcript(stt_result)
+        stt_metrics=compute_en_stt_metrics(stt_result)
+    else:
+        stt_service=STTService(project_id=settings.google_cloud_project_id)
+        stt_result=await stt_service.transcribe_chirp(wav_data)
+        transcript=extract_transcript(stt_result)
+        stt_metrics=compute_stt_metrics(stt_result)
 
     # DB 저장
     answer.transcript=transcript
@@ -216,6 +329,21 @@ async def upload_process_answer_audio(answer_id:int, file:UploadFile=File(...), 
     answer.stt_metrics_json=stt_metrics
     await db.commit()
     await db.refresh(answer)
+
+
+    if language=="en":
+        return AnswerUploadProcessResponse(
+            answer_id=answer_id,
+            audio_format=ext,
+            size=len(data),
+            transcript=transcript,
+            duration_sec=answer.duration_sec,
+            stt_metrics=stt_metrics,
+            bert_analysis=None,
+            sentences=[],
+            label_counts={},
+        )
+
 
     # process
     process_result=await i_process_answer(answer_id, db)
@@ -330,3 +458,18 @@ async def get_user_metric_changes(
         return await get_metric_changes(db, user_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"지표 변화 분석 중 오류: {e}")
+
+
+# 인터뷰 진행 상태 조회
+@router.get("/{i_id}/status")
+async def get_interview_status(i_id:int, db:AsyncSession=Depends(get_db)):
+    interview=await crud.get_i(db, i_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="인터뷰를 찾을 수 없습니다.")
+    
+    return {
+        "i_id":i_id,
+        "status":interview.status,
+        "current_question":interview.current_question,
+        "total_questions":interview.total_questions,
+    }
