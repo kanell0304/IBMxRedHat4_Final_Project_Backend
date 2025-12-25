@@ -3,7 +3,7 @@ set -e
 
 echo "🔑 Google Cloud 인증 파일 다운로드 중..."
 
-# S3에서 다운로드 (파일명 정확히!)
+# S3에서 다운로드
 aws s3 cp s3://team2-backend-wav2vec-pkl/spageti-stt-de1456d6a2c0.json /app/google-creds.json --region ap-northeast-2
 
 # 파일 확인
@@ -21,4 +21,4 @@ mkdir -p /app/chroma_db
 echo "🚀 FastAPI 서버 시작..."
 
 # Uvicorn 실행
-exec uvicorn main:app --host 0.0.0.0 --port 8081 --workers 4
+exec uvicorn main:app --host 0.0.0.0 --port 8081 --workers 2
