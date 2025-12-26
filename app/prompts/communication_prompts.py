@@ -1,6 +1,51 @@
 from typing import Dict, List
 
 
+def parse_time(time_str: str) -> float:
+    """시간 문자열(예: '1.234s')을 float로 변환"""
+    return float(time_str.replace('s', ''))
+
+
+def extract_filler_durations(stt_data: Dict, sentence: Dict) -> List[Dict]:
+    """
+    문장에 포함된 filler 단어들의 duration 추출
+
+    Returns:
+        [{"word": "음", "duration": 0.8}, ...]
+    """
+    FILLER_WORDS = ["음", "어", "어 음"]
+    filler_info = []
+
+    sent_start = parse_time(sentence['start_time'])
+    sent_end = parse_time(sentence['end_time'])
+
+    if "results" not in stt_data:
+        return filler_info
+
+    for result in stt_data["results"]:
+        if "alternatives" not in result or not result["alternatives"]:
+            continue
+
+        alt = result["alternatives"][0]
+        if "words" not in alt:
+            continue
+
+        for word_info in alt["words"]:
+            word = word_info.get("word", "")
+            word_start = parse_time(word_info.get("startTime", "0s"))
+            word_end = parse_time(word_info.get("endTime", "0s"))
+            speaker = word_info.get("speakerLabel", "1")
+
+            # 해당 문장 범위 내의 단어만
+            if speaker == sentence['speaker_label'] and sent_start <= word_start < sent_end:
+                # filler 단어인지 확인
+                if word in FILLER_WORDS:
+                    duration = word_end - word_start
+                    filler_info.append({"word": word, "duration": round(duration, 2)})
+
+    return filler_info
+
+
 def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, bert_result: Dict = None, bert_sentence_results: Dict = None):
     """
     Communication 분석용 프롬프트 생성
@@ -13,23 +58,35 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
         bert_sentence_results: 문장별 BERT 분석 결과 (sentence_index -> issue list)
     """
 
-    # target_speaker의 문장만 필터링
-    target_sentences = [s for s in sentences if s["speaker_label"] == target_speaker]
-
-    # 문장 포맷팅 (sentence_index 명확하게 표시)
+    # 전체 문장 포맷팅 (말 끊기 판단을 위해 전체 대화 맥락 제공)
     formatted_sentences = []
-    for sent in target_sentences:
+    for sent in sentences:
+        is_target = sent['speaker_label'] == target_speaker
         text_content = sent['text']
-        
-        # BERT 감지 결과 추가
-        if bert_sentence_results and sent['sentence_index'] in bert_sentence_results:
+
+        # Filler duration annotation 추가 (모든 화자)
+        filler_durations = extract_filler_durations(stt_data, sent)
+        if filler_durations:
+            duration_annotations = []
+            for f in filler_durations:
+                annotation = f"'{f['word']}' ({f['duration']}초)"
+                if f['duration'] >= 0.5:
+                    annotation += " [추임새?]"
+                duration_annotations.append(annotation)
+            text_content += f" | Filler 후보: {', '.join(duration_annotations)}"
+
+        # BERT 감지 결과 추가 (target_speaker만)
+        if is_target and bert_sentence_results and sent['sentence_index'] in bert_sentence_results:
             issues = bert_sentence_results[sent['sentence_index']]
             if issues:
-                text_content += f" [BERT 감지: {', '.join(issues)}]"
+                text_content += f" | BERT 감지: {', '.join(issues)}"
+
+        # 분석 대상 화자 표시
+        speaker_marker = " [분석 대상]" if is_target else ""
 
         formatted_sentences.append(
             f"### Sentence [{sent['sentence_index']}] ###\n"
-            f"Speaker: {sent['speaker_label']}\n"
+            f"Speaker: {sent['speaker_label']}{speaker_marker}\n"
             f"Time: {sent['start_time']} - {sent['end_time']}\n"
             f"Text: {text_content}\n"
         )
@@ -48,9 +105,9 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
 [BERT 분석 결과]
 - 욕설 감지 횟수: {curse_count}회
 - 차별/비하 발언 감지 횟수: {biased_count}회
-- 필러 감지 횟수: {filler_count}회
+- 필러 감지 횟수: {filler_count}회 (참고용, duration 정보 우선)
 - 비표준어(Slang) 감지 횟수: {slang_count}회
-(중요: sentence_feedbacks에서 위 4가지 카테고리의 총 개수는 위 횟수와 정확히 일치해야 합니다)
+(중요: curse, biased, slang은 BERT 횟수와 정확히 일치해야 함. filler는 duration 기반으로 독립 판단)
 """
 
     prompt = f"""
@@ -58,13 +115,16 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
 아래 대화 내용과 타임스탬프 정보를 분석하고, 화자의 발화 특성을 평가하세요.
 
 [대화 데이터]
-분석 대상 화자: Speaker {target_speaker}
+분석 대상 화자: Speaker {target_speaker} ([분석 대상] 표시)
+전체 대화를 제공합니다. 분석은 [분석 대상] 화자에 대해서만 수행하세요.
+단, 말 끊기 판단을 위해 상대방 화자의 발화 정보도 함께 제공합니다.
 
 {sentences_text}
 {bert_info}
 
 [분석 가이드]
-다음 항목들을 평가하고 구체적인 피드백을 제공하세요:
+다음 항목들을 평가하고 구체적인 피드백을 제공하세요.
+**중요: 분석 대상은 Speaker {target_speaker} ([분석 대상] 표시)만이며, detected_examples와 sentence_feedbacks는 분석 대상 화자의 문장에만 추가해야 합니다.**
 
 1. speaking_speed (발화 속도, 단위: 음절/초)
    - 순수 조음 속도와 휴지 포함 속도를 모두 계산하여 종합 평가
@@ -90,12 +150,14 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
    - 점수 기준은 clarity와 동일
 
 5. cut (말 끊기 횟수)
-   - 화자가 말을 끝내기 전에 상대방이 끼어든 횟수
+   - **[분석 대상] 화자가 상대방의 말을 끊고 끼어든 횟수**
    - 판단 기준 (모두 충족 시 말 끊기로 간주):
-     1) 화자가 변경됨
-     2) 화자 변경 전후 간격이 0.5초 이하로 짧음 (타임스탬프 분석)
-     3) 변경 전 문장이 완성되지 않음 (문맥상 문장이 끝나지 않은 상태)
-   - 문장 완성도는 종결어미 유무, 문맥의 완결성을 종합적으로 판단
+     1) [분석 대상] 화자가 발화를 시작함
+     2) 직전 문장이 상대방(다른 Speaker) 발화임
+     3) 직전 상대방 문장의 end_time과 현재 문장의 start_time 간격이 0.5초 이하
+     4) **직전 상대방 문장이 불완전하게 끝남** (종결어미 없음, 문맥상 미완성, "...", "근데", "그래서" 등)
+   - detected_examples에는 [분석 대상] 화자가 끼어든 문장의 sentence_index를 기록
+   - 예: 상대 "그게 말이야..." (불완전) → [분석 대상] "아니 그게 아니라" (끼어듦) → detected_examples에 후자 인덱스 추가
 
 6. curse (욕설)
    - BERT가 감지한 욕설 개수와 정확히 일치하도록 문장 선택
@@ -106,25 +168,36 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
    - 장애인 비하, 혐오 표현, 차별적 언어가 포함된 문장 식별
 
 8. filler (필러)
-   - BERT가 감지한 필러 개수와 정확히 일치하도록 문장 선택
-   - "음", "어", "그", "뭐" 등 의미 없는 말버릇 식별
+   - **Filler 후보** annotation을 참고하여 판단
+   - 0.5초 이상 길게 끈 경우 ([추임새?] 표시) 추임새로 판정
+   - 0.5초 미만이라도 문맥상 의미 없는 습관어라면 추임새로 판정
+   - "음", "어" 등이 감탄사나 긍정의 의미로 사용된 경우는 제외
+   - BERT 감지 결과도 함께 참고하되, duration 정보를 우선적으로 고려
 
 9. slang (비표준어)
    - BERT가 감지한 비표준어 개수와 정확히 일치하도록 문장 선택
    - 줄임말, 신조어, 인터넷 용어, 방언 등 식별
 
 10. summary (종합 요약)
-   - 전반적인 커뮤니케이션 능력 평가를 5-7문장으로 작성
-   - 강점과 개선점을 균형있게 서술
+   - 전반적인 커뮤니케이션 데이터 결과값을 3-4문장으로 작성하십시오.
+   - **문장 제약:** '화자', 'Speaker', '당신', '분석 대상', '사람' 등 인칭/대상 지칭어를 절대 사용하지 마십시오.
+   - **문장 시작:** 반드시 '발화 속도는', '어휘 선택은', '전체적인 흐름은' 등 분석 항목을 주어로 시작하십시오.
+   - 예시: "발화 속도가 적정하여 전달력이 높으나, 문장 끝맺음이 다소 불분명함." (O) / "화자는 발화 속도가 적정합니다." (X)
+   - 구성 방식: 각 지표를 단문으로 나열하지 말고, 관련 있는 지표끼리 묶어 인과관계나 대조를 활용해 서술하십시오. (예: 속도는 좋으나 발음이 부정확하여 전달력이 상쇄됨)
+   - 접속사 활용: '또한', '반면', '이와 더불어', '따라서' 등의 접속사를 사용하여 문장 간 흐름을 자연스럽게 연결하십시오.
+   - 문장 구조: 3-4문장 내외로 작성하되, 핵심 지표들이 서로 어떻게 영향을 주는지 통합적인 관점에서 서술하십시오.
 
 11. advice (개선 조언)
-   - 구체적이고 실천 가능한 개선 방법을 5-7문장으로 작성
-   - 우선순위가 높은 항목부터 제시
+   - 실천 가능한 개선 지침을 3-4문장으로 작성하십시오.
+   - **문장 제약:** 명령형(~하십시오) 대신 '필요함', '권장됨', '도움이 됨' 등의 표현을 사용하십시오.
+   - **문장 시작:** 개선이 필요한 '항목'이나 '행동'으로 문장을 시작하십시오.
+   - 예시: "문장 사이의 휴지를 1초 이상 확보하는 연습이 필요함." (O) / "화자분은 휴지를 확보하세요." (X)
 
 [중요 지침]
 1. detected_examples에는 문제가 발견된 Sentence 인덱스 번호만 배열로 반환하세요.
+   - **인덱스는 전체 대화에서의 sentence_index를 사용** (### Sentence [N] ###에 표시된 N)
+   - **[분석 대상] 표시된 화자의 문장만 선택** (상대방 문장은 절대 포함하지 않음)
    - 예: "detected_examples": [0, 2, 5]
-   - Sentence 인덱스는 0부터 시작합니다.
    - 문제가 발견되지 않으면 빈 배열 []을 반환하세요.
 
 2. reason에는 해당 항목에 대한 판단 근거를 한두 문장으로 작성하세요.
@@ -132,8 +205,8 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
 3. improvement에는 구체적이고 실천 가능한 개선 방법을 작성하세요.
 
 4. sentence_feedbacks에는 각 문장별 구체적인 피드백을 작성하세요.
-   - 분석 대상 화자의 문장에만 피드백 추가
-   - 각 피드백은 간결한 한 줄 요약 형식 (예: "너무 빠름", "'음' 사용")
+   - **[분석 대상] 화자의 문장에만 피드백 추가** (상대방 문장은 제외)
+   - 각 피드백은 간결한 한 줄 요약 형식 (예: "너무 빠름", "'음' 사용", "상대 말 끊음")
    - 문제가 없는 문장은 sentence_feedbacks에 포함하지 않음
 
 5. curse, filler, biased, slang의 count 값을 정확히 계산하세요.
@@ -204,8 +277,8 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
         "reason": "<판단 근거>",
         "improvement": "<개선 방법>"
     }},
-    "summary": "<종합 요약 5-7문장>",
-    "advice": "<개선 조언 5-7문장>",
+    "summary": "<종합 요약 3-4문장>",
+    "advice": "<개선 조언 3-4문장>",
     "sentence_feedbacks": [
         {{
             "sentence_index": 0,

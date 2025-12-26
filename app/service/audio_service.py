@@ -4,6 +4,7 @@ from typing import Tuple
 import os
 import platform
 from pathlib import Path
+import tempfile
 
 
 # 환경에 따라 ffmpeg 경로 자동 설정
@@ -59,6 +60,7 @@ setup_ffmpeg()
 class AudioService:
     @staticmethod
     def convert_to_wav(audio_data: bytes, original_format: str) -> Tuple[bytes, float]:
+        temp_file_path = None
         try:
             if original_format.startswith('.'):
                 original_format = original_format[1:]
@@ -78,8 +80,14 @@ class AudioService:
 
             format_to_use = format_mapping.get(original_format, original_format)
 
+            # 임시 파일 생성 (ffmpeg가 stdin으로 m4a 등을 처리할 때 moov atom 에러가 발생할 수 있음)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{original_format}") as temp_file:
+                temp_file.write(audio_data)
+                temp_file_path = temp_file.name
+
+            # 파일 경로로 로드
             audio = AudioSegment.from_file(
-                BytesIO(audio_data),
+                temp_file_path,
                 format=format_to_use
             )
 
@@ -101,3 +109,10 @@ class AudioService:
             )
         except Exception as e:
             raise RuntimeError(f"오디오 변환 중 오류 발생: {str(e)}")
+        finally:
+            # 임시 파일 정리
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.remove(temp_file_path)
+                except Exception:
+                    pass
