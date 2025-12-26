@@ -59,7 +59,14 @@ class CommunityCRUD:
 
         # 조회수 증가
         if increment_view:
-            await db.execute(update(CommunityPost).where(CommunityPost.post_id == post_id).values(view_count=CommunityPost.view_count + 1))
+            await db.execute(
+                update(CommunityPost)
+                .where(CommunityPost.post_id == post_id)
+                .values(
+                    view_count=CommunityPost.view_count + 1,
+                    updated_at=CommunityPost.updated_at  # 조회수 증가로 updated_at이 바뀌지 않도록 유지
+                )
+            )
 
             await db.commit()
         
@@ -170,8 +177,15 @@ class CommunityCRUD:
         comment = CommunityComment(post_id=post_id, user_id=user_id, content=content, parent_comment_id=parent_comment_id)
         db.add(comment)
         
-        # 게시글의 댓글 수 증가
-        await db.execute(update(CommunityPost).where(CommunityPost.post_id == post_id).values(comment_count=CommunityPost.comment_count + 1))
+        # 게시글의 댓글 수 증가 (updated_at은 유지)
+        await db.execute(
+            update(CommunityPost)
+            .where(CommunityPost.post_id == post_id)
+            .values(
+                comment_count=CommunityPost.comment_count + 1,
+                updated_at=CommunityPost.updated_at
+            )
+        )
         
         await db.commit()
         await db.refresh(comment)
@@ -238,7 +252,14 @@ class CommunityCRUD:
         )
         deleted_count = deleted_count_result.scalar()
         
-        await db.execute(update(CommunityPost).where(CommunityPost.post_id == post_id).values(comment_count=CommunityPost.comment_count - deleted_count))
+        await db.execute(
+            update(CommunityPost)
+            .where(CommunityPost.post_id == post_id)
+            .values(
+                comment_count=CommunityPost.comment_count - deleted_count,
+                updated_at=CommunityPost.updated_at
+            )
+        )
         
         await db.commit()
         return True
@@ -268,7 +289,14 @@ class CommunityCRUD:
             )
 
             # 좋아요를 취소했으니 해당 게시글의 좋아요 수 감소
-            await db.execute(update(CommunityPost).where(CommunityPost.post_id == post_id).values(like_count=CommunityPost.like_count - 1))
+            await db.execute(
+                update(CommunityPost)
+                .where(CommunityPost.post_id == post_id)
+                .values(
+                    like_count=CommunityPost.like_count - 1,
+                    updated_at=CommunityPost.updated_at
+                )
+            )
             await db.commit()
 
             return {"action": "unliked", "like_count": -1}
@@ -277,7 +305,14 @@ class CommunityCRUD:
             like = CommunityPostLike(post_id=post_id, user_id=user_id)
             db.add(like)
             # 게시글의 좋아요 수 증가
-            await db.execute(update(CommunityPost).where(CommunityPost.post_id == post_id).values(like_count=CommunityPost.like_count + 1))
+            await db.execute(
+                update(CommunityPost)
+                .where(CommunityPost.post_id == post_id)
+                .values(
+                    like_count=CommunityPost.like_count + 1,
+                    updated_at=CommunityPost.updated_at
+                )
+            )
             await db.commit()
 
             return {"action": "liked", "like_count": 1}
