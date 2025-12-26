@@ -259,6 +259,7 @@ def build_prompt(sentences: List[Dict], stt_data: Dict, target_speaker: str, ber
         "improvement": "<개선 방법>"
     }},
 
+
     "filler": {{
         "count": <int, 군말/망설임이 포함된 문장 개수>,
         "detected_examples": [0, 3],
