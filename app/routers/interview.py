@@ -462,3 +462,79 @@ async def get_interview_status(i_id:int, db:AsyncSession=Depends(get_db)):
         "total_questions":interview.total_questions,
         "language":interview.language,
     }
+
+
+# 변경 예정
+# ChromaDB 데이터 확인
+@router.get("/debug/chroma/{user_id}")
+async def debug_chroma_data(user_id: int):
+    from app.infra.chroma_db import collection
+
+    # 사용자의 모든 데이터 조회
+    all_results = collection.get(
+        where={"user_id": user_id},
+        include=["metadatas", "documents"]
+    )
+
+    # 언어별로 분류
+    ko_count = 0
+    en_count = 0
+    no_lang_count = 0
+
+    for meta in all_results.get("metadatas", []):
+        lang = meta.get("language")
+        if lang == "ko":
+            ko_count += 1
+        elif lang == "en":
+            en_count += 1
+        else:
+            no_lang_count += 1
+
+    # 한국어만 조회
+    ko_results = collection.get(
+        where={
+            "$and": [
+                {"user_id": user_id},
+                {"language": "ko"}
+            ]
+        },
+        include=["metadatas"]
+    )
+
+    return {
+        "user_id": user_id,
+        "total_documents": len(all_results.get("ids", [])),
+        "korean_documents": ko_count,
+        "english_documents": en_count,
+        "no_language_documents": no_lang_count,
+        "korean_filtered_count": len(ko_results.get("ids", [])),
+        "sample_metadata": all_results.get("metadatas", [])[:3] if all_results.get("metadatas") else []
+    }
+
+
+# ChromaDB 데이터 삭제
+@router.delete("/debug/chroma/{user_id}")
+async def delete_chroma_data(user_id: int):
+    from app.infra.chroma_db import collection
+
+    try:
+        # 삭제 전 개수 확인
+        before = collection.get(where={"user_id": user_id}, include=["metadatas"])
+        before_count = len(before.get("ids", []))
+
+        # 삭제
+        collection.delete(where={"user_id": user_id})
+
+        # 삭제 후 확인
+        after = collection.get(where={"user_id": user_id}, include=["metadatas"])
+        after_count = len(after.get("ids", []))
+
+        return {
+            "success": True,
+            "user_id": user_id,
+            "deleted_count": before_count - after_count,
+            "before_count": before_count,
+            "after_count": after_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ChromaDB 삭제 실패: {e}")

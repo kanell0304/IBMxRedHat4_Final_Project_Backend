@@ -23,12 +23,13 @@ async def get_weakness_analysis(db:AsyncSession, user_id:int)->WeaknessCardRespo
             summary=f"총 {total_interviews}회 인터뷰 완료. 약점 분석을 위해 최소 3회 이상의 한국어 모의면접 데이터가 필요합니다."
         )
 
-    # ChromaDB에서 사용자의 모든 문장 조회
+    # ChromaDB에서 사용자의 한국어 면접 문장만 조회
     results=collection.get(
         where={
             "$and":[
                 {"user_id":user_id},
-                {"type":"user_answer_sentence"}
+                {"type":"user_answer_sentence"},
+                {"language":"ko"}
             ]
         },
         include=["metadatas", "documents"]

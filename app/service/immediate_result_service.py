@@ -91,14 +91,15 @@ async def find_similar_answer_hint(
 
         current_embedding=current_data["embeddings"][0]
 
-        # 유사한 과거 답변 검색 (자기 자신 제외)
+        # 유사한 과거 답변 검색
         similar_results=collection.query(
             query_embeddings=[current_embedding],
             n_results=5,  # 상위 5개 가져와서 현재 세션 제외
             where={
                 "$and": [
                     {"user_id": user_id},
-                    {"type": "user_answer_full"}
+                    {"type": "user_answer_full"},
+                    {"language": current_interview.language or "ko"}
                 ]
             }
         )
