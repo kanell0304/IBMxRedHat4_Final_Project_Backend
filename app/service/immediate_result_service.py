@@ -10,39 +10,41 @@ from app.service.copy_builder import build_similar_answer_hint_message
 # 인터뷰 직후 결과 조회 (총평 + 질문별 평가 + 유사답변 힌트)
 async def get_immediate_result(i_id:int, db:AsyncSession)->ImmediateResultResponse:
 
-    # 1. 인터뷰 총평 조회 (scope=overall)
+    interview=await crud.get_i(db, i_id)
+    if not interview:
+        raise ValueError("인터뷰를 찾을 수 없습니다.")
+
+    language=interview.language or 'ko'
+
     overall_result=await crud.get_result_by_scope(db, i_id, scope="overall")
     if not overall_result:
         raise ValueError("인터뷰 총평이 아직 생성되지 않았습니다.")
 
-    overall_report=I_Report(**overall_result.report)
-
-    # 2. 질문별 세부 평가 조회 (scope=per_question)
-    per_question_results=await crud.get_results_by_scope(db, i_id, scope="per_question")
+    if language == 'en':
+        from app.database.schemas.interview import I_Report_En
+        overall_report=I_Report_En(**overall_result.report)
+    else:
+        overall_report=I_Report(**overall_result.report)
 
     question_details:List[QuestionDetailEvaluation]=[]
-    for result in per_question_results:
-        report_data=result.report
 
-        # 답변 원문 조회
-        if result.i_answer_id:
-            answer=await crud.get_answer(db, result.i_answer_id)
-            user_answer=answer.transcript if answer else ""
-        else:
-            user_answer = ""
+    if hasattr(overall_report, 'content_per_question') and overall_report.content_per_question:
+        answers=interview.answers
 
-        question_details.append(QuestionDetailEvaluation(
-            q_index=report_data.get("q_index", 0),
-            q_text=report_data.get("q_text", ""),
-            user_answer=user_answer,
-            question_intent=report_data.get("question_intent", "질문 의도를 분석 중입니다."),
-            is_appropriate=report_data.get("is_appropriate", True),
-            feedback=report_data.get("suggestion", ""),
-            evidence_sentences=report_data.get("evidence_sentences", [])
-        ))
+        for per_q in overall_report.content_per_question:
+            matching_answer=next((a for a in answers if a.q_order==per_q.q_index), None)
+            user_answer=matching_answer.transcript if (matching_answer and matching_answer.transcript) else ""
 
-    # 3. 유사 답변 힌트 (3회 이상일 때만)
-    interview=await crud.get_i(db, i_id)
+            question_details.append(QuestionDetailEvaluation(
+                q_index=per_q.q_index,
+                q_text=per_q.q_text,
+                user_answer=user_answer,
+                question_intent=per_q.question_intent,
+                is_appropriate=per_q.is_appropriate,
+                feedback=per_q.suggestion,
+                evidence_sentences=per_q.evidence_sentences
+            ))
+
     similar_hint=await find_similar_answer_hint(db, interview.user_id, i_id)
 
     return ImmediateResultResponse(
