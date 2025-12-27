@@ -50,16 +50,16 @@ def build_metric_change_summary(
         pass
 
     if not changes:
-        return f"총 {total_interview}회 인터뷰 완료. 최근 5회와 이전 5회 사이에 큰 변화가 없습니다."
-    
+        return f"총 {total_interview}회 인터뷰 완료. 최근 3회와 이전 3회 사이에 큰 변화가 없습니다."
+
 
     positive = [c for c in changes if c.is_positive]
     negative = [c for c in changes if not c.is_positive]
 
     if positive and not negative:
-        return f"최근 5회 동안 {positive[0].metric_name}이(가) {abs(positive[0].change_percent):.1f}% 개선되었습니다!"
+        return f"최근 3회 동안 {positive[0].metric_name}이(가) {abs(positive[0].change_percent):.1f}% 개선되었습니다!"
     elif negative and not positive:
-        return f"최근 5회 동안 {negative[0].metric_name}이(가) {abs(negative[0].change_percent):.1f}% 악화되었습니다. 주의가 필요합니다."
+        return f"최근 3회 동안 {negative[0].metric_name}이(가) {abs(negative[0].change_percent):.1f}% 악화되었습니다. 주의가 필요합니다."
     else:
         return f"{positive[0].metric_name} 개선 ({abs(positive[0].change_percent):.1f}%), {negative[0].metric_name} 주의 필요 ({abs(negative[0].change_percent):.1f}%)"
 

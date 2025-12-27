@@ -57,6 +57,7 @@ def save_chroma(
     overall_raw_labels: Dict[str, Any],
     stt_metrics: Optional[Dict[str, Any]] = None,
     created_at: Optional[float] = None,
+    language: str = "ko",
 ):
 
   # user_id 추가 전 저장된 기존 문서가 있으면 제거하고 덮어씀
@@ -84,6 +85,7 @@ def save_chroma(
     "session_id": session_id,
     "question_no": question_no,
     "user_id": user_id,
+    "language": language,
     "sentence_total": len(sentences),
     **{f"{k}_count": int(v) for k, v in label_counts.items()},
     **flat_overall,
@@ -111,6 +113,7 @@ def save_chroma(
       "session_id": session_id,
       "question_no": question_no,
       "user_id": user_id,
+      "language": language,
       "sentence_index": idx,
       **{f"{k}_label": int(v) for k, v in sent_labels.items()},
     }
@@ -227,7 +230,7 @@ async def i_process_answer(answer_id: int, db):
   await db.commit()
   await db.refresh(answer)
 
-  
+
   save_chroma(
     answer_id=answer.i_answer_id,
     session_id=answer.i_id,
@@ -239,6 +242,7 @@ async def i_process_answer(answer_id: int, db):
     overall_raw_labels=overall_raw,
     stt_metrics=stt_metrics,
     created_at=answer.created_at.timestamp() if answer.created_at else None,
+    language=interview.language or "ko",
   )
 
   return {

@@ -8,11 +8,12 @@ from app.service.copy_builder import build_metric_change_summary
 # 지표 변화 분석
 async def get_metric_changes(db:AsyncSession, user_id:int)->MetricChangeCardResponse:
 
-    # 1. 사용자의 모든 완료된 인터뷰 시간순으로 조회
+    # 1. 사용자의 모든 완료된 한국어 인터뷰 시간순으로 조회
     stmt=(
         select(Interview)
         .where(Interview.user_id==user_id)
         .where(Interview.status==2)
+        .where(Interview.language=='ko')
         .order_by(Interview.created_at.asc())
     )
     result=await db.execute(stmt)
@@ -21,26 +22,26 @@ async def get_metric_changes(db:AsyncSession, user_id:int)->MetricChangeCardResp
     total_interviews=len(interviews)
 
 
-    if total_interviews<10:
+    if total_interviews<6:
         return MetricChangeCardResponse(
             total_interviews=total_interviews,
             has_enough_data=False,
             significant_changes=[],
-            summary=f"총 {total_interviews}회 인터뷰 완료. 지표 비교를 위해 최소 10회 이상의 모의면접 데이터가 필요합니다."
+            summary=f"총 {total_interviews}회 인터뷰 완료. 지표 비교를 위해 최소 6회 이상의 한국어 모의면접 데이터가 필요합니다."
         )
 
-    # 2. 이전 5회와 최근 5회 분리
-    previous_5=interviews[-10:-5]
-    recent_5=interviews[-5:]
+    # 2. 이전 3회와 최근 3회 분리
+    previous_3=interviews[-6:-3]
+    recent_3=interviews[-3:]
 
     # 3. 각 그룹 답변 수집
     previous_answers=[]
-    for interview in previous_5:
+    for interview in previous_3:
         answers=await get_interview_answers(db, interview.i_id)
         previous_answers.extend(answers)
 
     recent_answers=[]
-    for interview in recent_5:
+    for interview in recent_3:
         answers=await get_interview_answers(db, interview.i_id)
         recent_answers.extend(answers)
 

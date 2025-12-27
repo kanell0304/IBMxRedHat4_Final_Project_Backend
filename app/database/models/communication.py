@@ -123,6 +123,12 @@ class CResult(Base):
     meaning_clarity: Mapped[float] = mapped_column(Float, nullable=False)
     cut: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # LLM이 계산한 감지 횟수
+    curse: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    filler: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    biased: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    slang: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
     # detected_examples, reason, improvement 저장하는 JSON 컬럼
     # 내용 없으면 null로 저장
     speaking_speed_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
