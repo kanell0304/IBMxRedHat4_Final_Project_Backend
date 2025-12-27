@@ -112,82 +112,78 @@ class CAnalysisService:
             # Watsonx 등 다른 LLM service 사용 시
             raise NotImplementedError("Watsonx는 아직 구현되지 않았습니다.")
 
-        # [CRITICAL] BERT/Rule-based 결과를 Truth로 간주하여 LLM 결과 덮어쓰기
-        # LLM이 엉뚱한 문장을 욕설로 잡거나(환각), 잡아야 할 문장을 놓치는 것을 방지
-        
-        # 1. 카테고리별 detected_examples 강제 동기화
-        target_categories = ["curse", "biased", "filler"]
-        
-        # 초기화 (LLM 결과 싹 비우고 BERT 결과로 채움)
-        for cat in target_categories:
+        # [CRITICAL] BERT + LLM 융합: BERT가 감지한 것 100% 포함 + LLM 추가 감지도 유지
+        # filler는 duration 기반으로 LLM이 독립 판단, 나머지는 BERT 강제 동기화
+
+        # 1. 카테고리별 detected_examples BERT로 보강
+        bert_sync_categories = ["curse", "biased", "slang"]  # filler 제외
+        all_categories = ["curse", "biased", "filler", "slang"]
+
+        # LLM 결과 없으면 초기화
+        for cat in all_categories:
             if cat not in llm_result:
                 llm_result[cat] = {"reason": "감지된 내용이 없습니다.", "improvement": "", "detected_examples": []}
-            else:
+            elif "detected_examples" not in llm_result[cat]:
                 llm_result[cat]["detected_examples"] = []
 
-        # BERT 결과 주입
+        # BERT 결과 추가 (curse, biased, slang만 강제 동기화, filler는 LLM 독립 판단)
         for idx, issues in bert_sentence_results.items():
             for issue in issues:
-                # issue 문자열(예: 'curse', 'biased')이 target_categories에 있다면 추가
-                if issue in target_categories:
+                if issue in bert_sync_categories:
                     if idx not in llm_result[issue]["detected_examples"]:
                         llm_result[issue]["detected_examples"].append(idx)
-                # 'slang'은 'curse'로 통합 처리
-                elif issue == 'slang':
-                    if idx not in llm_result['curse']["detected_examples"]:
-                        llm_result['curse']["detected_examples"].append(idx)
 
-        # [CRITICAL] count 값 강제 동기화 (detected_examples 개수와 일치)
-        # 프론트엔드 그래프 및 요약 통계의 정합성을 보장
-        for cat in target_categories:
-            if cat in llm_result:
-                llm_result[cat]["count"] = len(llm_result[cat]["detected_examples"])
-
-        # 2. sentence_feedbacks 강제 동기화
+        # 2. sentence_feedbacks BERT로 보강 (LLM 결과 유지 + BERT 추가)
         if "sentence_feedbacks" not in llm_result:
             llm_result["sentence_feedbacks"] = []
-            
-        # 기존 피드백 맵핑 생성 (curse/biased/filler 제외한 나머지만 유지)
-        clean_feedbacks = {}
+
+        # 기존 피드백 맵핑 생성 (LLM 결과 모두 유지)
+        feedback_map = {}
         for item in llm_result["sentence_feedbacks"]:
             idx = item["sentence_index"]
-            # 해당 카테고리가 아닌 것들만 남김 (예: speed, clarity 등은 유지)
-            filtered_fbs = [
-                fb for fb in item.get("feedbacks", []) 
-                if fb.get("category") not in target_categories and fb.get("category") != 'slang'
-            ]
-            if filtered_fbs:
-                clean_feedbacks[idx] = filtered_fbs
+            feedback_map[idx] = item.get("feedbacks", [])[:]  # 복사
 
-        # BERT 결과로 피드백 재생성
+        # BERT 결과 추가 (curse, biased, slang만, filler는 LLM 판단 우선)
         for idx, issues in bert_sentence_results.items():
-            if idx not in clean_feedbacks:
-                clean_feedbacks[idx] = []
-            
+            if idx not in feedback_map:
+                feedback_map[idx] = []
+
             for issue in issues:
+                # filler는 BERT 피드백 추가하지 않음 (LLM이 duration 기반으로 판단)
+                if issue == 'filler':
+                    continue
+
                 category = issue
                 message = f"{issue} 감지됨"
-                
-                if issue == 'curse' or issue == 'slang':
-                    category = 'curse'
+
+                if issue == 'curse':
                     message = "욕설/비속어 사용"
                 elif issue == 'biased':
-                    category = 'biased'
                     message = "차별/비하 발언 감지"
-                elif issue == 'filler':
-                    category = 'filler'
-                    message = "습관어(추임새) 사용"
+                elif issue == 'slang':
+                    message = "비표준어 사용"
 
-                # 중복 추가 방지
-                if not any(fb["category"] == category for fb in clean_feedbacks[idx]):
-                    clean_feedbacks[idx].append({"category": category, "message": message})
+                # LLM이 이미 해당 카테고리 피드백 제공했으면 스킵
+                if not any(fb["category"] == category for fb in feedback_map[idx]):
+                    feedback_map[idx].append({"category": category, "message": message})
 
-        # 리스트 형태로 변환하여 할당
+        # 리스트 형태로 변환
         llm_result["sentence_feedbacks"] = [
-            {"sentence_index": idx, "feedbacks": fbs} 
-            for idx, fbs in clean_feedbacks.items()
-            if fbs # 피드백이 있는 경우만
+            {"sentence_index": idx, "feedbacks": fbs}
+            for idx, fbs in feedback_map.items()
+            if fbs
         ]
+
+        # [CRITICAL] count 값 계산: sentence_feedbacks에서 실제 표시된 피드백 개수
+        # 프론트엔드 스크립트 페이지의 이모지 개수와 그래프 count가 일치하도록 보장
+        for cat in all_categories:
+            if cat in llm_result:
+                count = sum(
+                    1 for item in llm_result.get("sentence_feedbacks", [])
+                    for fb in item.get("feedbacks", [])
+                    if fb.get("category") == cat
+                )
+                llm_result[cat]["count"] = count
 
         return {
             "sentences": sentences,
