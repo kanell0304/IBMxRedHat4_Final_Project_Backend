@@ -26,7 +26,12 @@ async def upload_wav(
     audio_data = await file.read()
     original_format = file.filename.split('.')[-1]
     
-    wav_data, duration = audio_service.convert_to_wav(audio_data, original_format)
+    try:
+        wav_data, duration = audio_service.convert_to_wav(audio_data, original_format)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=f"오디오 변환 실패: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"오디오 처리 중 오류: {str(e)}")
     
     await crud.create_voice_file(
         db=db,
@@ -178,6 +183,10 @@ async def analyze_communication(
         clarity=llm_result.get("clarity", {}).get("score", 0.0),
         meaning_clarity=llm_result.get("meaning_clarity", {}).get("score", 0.0),
         cut=llm_result.get("cut", {}).get("score", 0),
+        curse=llm_result.get("curse", {}).get("count", 0),
+        filler=llm_result.get("filler", {}).get("count", 0),
+        biased=llm_result.get("biased", {}).get("count", 0),
+        slang=llm_result.get("slang", {}).get("count", 0),
         speaking_speed_json=prepare_json(llm_result.get("speaking_speed")),
         silence_json=prepare_json(llm_result.get("silence")),
         clarity_json=prepare_json(llm_result.get("clarity")),

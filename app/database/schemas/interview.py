@@ -69,6 +69,7 @@ class ContentOverall(BaseModel):
 class PerQuestionContent(BaseModel):
     q_index:int=Field(..., description="질문 번호")
     q_text:str=Field(..., description="질문 텍스트")
+    user_answer:str=Field(default="", description="사용자 답변 원문")
     score:int=Field(..., ge=0, le=100, description="해당 질문에 대한 답변 내용 적절성 점수")
     grade:str=Field(..., description="S/A/B/C/D 등급")
     comment:str=Field(..., description="이 답변이 왜 적절/부적절했는지 내용 중심 코멘트")
@@ -86,6 +87,13 @@ class I_Report(BaseModel):
     content_overall:ContentOverall=Field(..., description="전체 답변의 내용 적절성 평가")
     content_per_question:List[PerQuestionContent]=Field(default_factory=list, description="각 질문별 내용 적절성 평가")
     overall_comment:str=Field(..., description="전반적인 총평")
+
+class I_Report_En(BaseModel):
+    score:int=Field(..., ge=0, le=100, description="종합 점수(0~100)")
+    grade:str=Field(..., description="S/A/B/C/D 등급")
+    comments:List[str]=Field(..., description="평가 코멘트 리스트")
+    improvements:List[str]=Field(..., description="개선사항 리스트")
+    stt_metrics:Dict[str, Any]=Field(..., description="STT metrics")
 
     
 class AnalyzeReq(BaseModel):
@@ -251,7 +259,7 @@ class SimilarAnswerHint(BaseModel):
 
 class ImmediateResultResponse(BaseModel):
     i_id:int
-    overall_report:I_Report=Field(..., description="인터뷰 총평")
+    overall_report:I_Report | I_Report_En=Field(..., description="인터뷰 총평")
     question_details:List[QuestionDetailEvaluation]=Field(..., description="질문별 세부 평가")
     similar_hint:Optional[SimilarAnswerHint]=Field(None, description="유사 답변 힌트 (3회 이상일 때만 해당)")
 
@@ -289,16 +297,16 @@ class WeaknessCardResponse(BaseModel):
 # 히스토리 : 지표 변화
 class MetricChange(BaseModel):
     metric_name:str=Field(..., description="지표 이름")
-    previous_avg:float=Field(..., description="이전 5회 평균값")
-    recent_avg:float=Field(..., description="최근 5회 평균값")
+    previous_avg:float=Field(..., description="이전 3회 평균값")
+    recent_avg:float=Field(..., description="최근 3회 평균값")
     change_percent:float=Field(..., description="변화율")
     direction:str=Field(..., description="up / down / stable")
     is_positive:bool=Field(..., description="긍정적 변화인지 여부")
 
 
 class MetricChangeCardResponse(BaseModel):
-    total_interviews:int=Field(..., description="총 인터뷰 수")
-    has_enough_data:bool=Field(..., description="10회 이상 데이터가 있는지 여부")
+    total_interviews:int=Field(..., description="총 한국어 인터뷰 수")
+    has_enough_data:bool=Field(..., description="6회 이상 데이터가 있는지 여부")
     significant_changes:List[MetricChange]=Field(..., description="변화가 큰 지표들")
     summary:str=Field(..., description="전체 변화 요약 문장")
 
