@@ -11,7 +11,8 @@ from app.service.copy_builder import build_improvement_guide, build_weakness_sum
 async def get_weakness_analysis(db:AsyncSession, user_id:int)->WeaknessCardResponse:
 
     interviews=await crud.list_i(db, user_id)
-    total_interviews=len(interviews)
+    korean_interviews=[i for i in interviews if (i.language or 'ko')=='ko']
+    total_interviews=len(korean_interviews)
 
     # 3회 미만 데이터 부족
     if total_interviews<3:
@@ -19,15 +20,16 @@ async def get_weakness_analysis(db:AsyncSession, user_id:int)->WeaknessCardRespo
             total_interviews=total_interviews,
             has_enough_data=False,
             top_weaknesses=[],
-            summary=f"총 {total_interviews}회 인터뷰 완료. 약점 분석을 위해 최소 3회 이상의 모의면접 데이터가 필요합니다."
+            summary=f"총 {total_interviews}회 인터뷰 완료. 약점 분석을 위해 최소 3회 이상의 한국어 모의면접 데이터가 필요합니다."
         )
 
-    # ChromaDB에서 사용자의 모든 문장 조회
+    # ChromaDB에서 사용자의 한국어 면접 문장만 조회
     results=collection.get(
         where={
             "$and":[
                 {"user_id":user_id},
-                {"type":"user_answer_sentence"}
+                {"type":"user_answer_sentence"},
+                {"language":"ko"}
             ]
         },
         include=["metadatas", "documents"]

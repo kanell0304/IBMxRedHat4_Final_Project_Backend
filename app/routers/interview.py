@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.database import get_db
 from app.service.analysis_service import get_analysis_service
 from app.service.i_start_service import i_start_session
-from app.database.schemas.interview import AnalyzeReq, I_Report, ProcessAnswerResponse, AnswerUploadResponse, I_Create, I_Basic, I_Detail, AnswerCreate, Answer, I_Result, I_StartReq, I_StartRes, AnswerUploadProcessResponse, ImmediateResultResponse, MetricChangeCardResponse, WeaknessCardResponse
+from app.database.schemas.interview import AnalyzeReq, I_Report, I_Report_En, ProcessAnswerResponse, AnswerUploadResponse, I_Create, I_Basic, I_Detail, AnswerCreate, Answer, I_Result, I_StartReq, I_StartRes, AnswerUploadProcessResponse, ImmediateResultResponse, MetricChangeCardResponse, WeaknessCardResponse
 from app.database.crud import interview as crud
 from app.service.i_stats_service import compute_interview_stt_metrics
 from app.service.llm_service import OpenAIService
@@ -104,9 +104,10 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
 
             report_data={
                 "score":analysis_result["score"],
+                "grade":analysis_result["grade"],
                 "comments":analysis_result["comments"],
-                "stt_metrics":analysis_result["stt_metrics"],
-                "transcript":analysis_result["transcript"]
+                "improvements":analysis_result["improvements"],
+                "stt_metrics":analysis_result["stt_metrics"]
             }
 
             await crud.create_result(
@@ -119,11 +120,13 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
 
             await crud.update_interview(db, i_id, status=2)
 
-            return {
-                "score":analysis_result["score"],
-                "comments":analysis_result["comments"],
-                "stt_metrics":analysis_result["stt_metrics"]
-            }
+            return I_Report_En(
+                score=analysis_result["score"],
+                grade=analysis_result["grade"],
+                comments=analysis_result["comments"],
+                improvements=analysis_result["improvements"],
+                stt_metrics=analysis_result["stt_metrics"]
+            )
 
         answers=interview.answers
         if not answers:
@@ -175,34 +178,6 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
             scope="overall",
             report=report.model_dump()
         )
-
-        # 질문별 개별 결과 저장
-        if report.content_per_question:
-            for per_q in report.content_per_question:
-                q_index=per_q.q_index
-
-                if 0<q_index<=len(qa_list):
-                    qa_item=qa_list[q_index-1]
-                    q_id=qa_item.get("q_id")
-                    answer_id=qa_item.get("answer_id")
-
-                    per_question_report={
-                        "q_index":per_q.q_index,
-                        "q_text":per_q.q_text,
-                        "score":per_q.score,
-                        "comment":per_q.comment,
-                        "suggestion":per_q.suggestion,
-                    }
-
-                    await crud.create_result(
-                        db=db,
-                        user_id=interview.user_id,
-                        i_id=i_id,
-                        scope="per_question",
-                        report=per_question_report,
-                        i_answer_id=answer_id,
-                        q_id=q_id,
-                    )
 
         await crud.update_interview(db, i_id, status=2)
 
@@ -422,7 +397,20 @@ async def complete_i(i_id: int, db: AsyncSession = Depends(get_db)):
 # 인터뷰 결과 조회
 @router.get("/{i_id}/results", response_model=list[I_Result])
 async def get_results(i_id: int, db: AsyncSession = Depends(get_db)):
-    return await crud.list_results(db, i_id)
+    results = await crud.list_results(db, i_id)
+
+    interview = await crud.get_i(db, i_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="인터뷰를 찾을 수 없습니다.")
+
+    for result in results:
+        if result.scope == "overall" and "content_per_question" in result.report:
+            answers = interview.answers
+            for per_q in result.report["content_per_question"]:
+                matching_answer = next((a for a in answers if a.q_order == per_q["q_index"]), None)
+                per_q["user_answer"] = matching_answer.transcript if matching_answer else ""
+
+    return results
 
 
 # 인터뷰 삭제
@@ -466,10 +454,87 @@ async def get_interview_status(i_id:int, db:AsyncSession=Depends(get_db)):
     interview=await crud.get_i(db, i_id)
     if not interview:
         raise HTTPException(status_code=404, detail="인터뷰를 찾을 수 없습니다.")
-    
+
     return {
         "i_id":i_id,
         "status":interview.status,
         "current_question":interview.current_question,
         "total_questions":interview.total_questions,
+        "language":interview.language,
     }
+
+
+# 변경 예정
+# ChromaDB 데이터 확인
+@router.get("/debug/chroma/{user_id}")
+async def debug_chroma_data(user_id: int):
+    from app.infra.chroma_db import collection
+
+    # 사용자의 모든 데이터 조회
+    all_results = collection.get(
+        where={"user_id": user_id},
+        include=["metadatas", "documents"]
+    )
+
+    # 언어별로 분류
+    ko_count = 0
+    en_count = 0
+    no_lang_count = 0
+
+    for meta in all_results.get("metadatas", []):
+        lang = meta.get("language")
+        if lang == "ko":
+            ko_count += 1
+        elif lang == "en":
+            en_count += 1
+        else:
+            no_lang_count += 1
+
+    # 한국어만 조회
+    ko_results = collection.get(
+        where={
+            "$and": [
+                {"user_id": user_id},
+                {"language": "ko"}
+            ]
+        },
+        include=["metadatas"]
+    )
+
+    return {
+        "user_id": user_id,
+        "total_documents": len(all_results.get("ids", [])),
+        "korean_documents": ko_count,
+        "english_documents": en_count,
+        "no_language_documents": no_lang_count,
+        "korean_filtered_count": len(ko_results.get("ids", [])),
+        "sample_metadata": all_results.get("metadatas", [])[:3] if all_results.get("metadatas") else []
+    }
+
+
+# ChromaDB 데이터 삭제
+@router.delete("/debug/chroma/{user_id}")
+async def delete_chroma_data(user_id: int):
+    from app.infra.chroma_db import collection
+
+    try:
+        # 삭제 전 개수 확인
+        before = collection.get(where={"user_id": user_id}, include=["metadatas"])
+        before_count = len(before.get("ids", []))
+
+        # 삭제
+        collection.delete(where={"user_id": user_id})
+
+        # 삭제 후 확인
+        after = collection.get(where={"user_id": user_id}, include=["metadatas"])
+        after_count = len(after.get("ids", []))
+
+        return {
+            "success": True,
+            "user_id": user_id,
+            "deleted_count": before_count - after_count,
+            "before_count": before_count,
+            "after_count": after_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ChromaDB 삭제 실패: {e}")

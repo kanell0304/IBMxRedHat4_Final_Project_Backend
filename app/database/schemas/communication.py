@@ -84,6 +84,10 @@ class AnalysisResultResponse(BaseModel):
     clarity: float
     meaning_clarity: float
     cut: int
+    curse: int
+    filler: int
+    biased: int
+    slang: int
     speaking_speed_json: Optional[dict]
     silence_json: Optional[dict]
     clarity_json: Optional[dict]
