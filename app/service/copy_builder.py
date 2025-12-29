@@ -28,6 +28,7 @@ def build_improvement_guide(
 def build_weakness_summary(
         weaknesses:List[WeaknessDetail],
         total_interview:int,
+        top_trend: Optional[str]=None,
         use_llm:bool=False
 )->str:
     if use_llm:
@@ -37,7 +38,11 @@ def build_weakness_summary(
         return f"총 {total_interview}회 인터뷰 분석 결과, 특별한 약점이 발견되지 않았습니다."
     
     top_weakness=weaknesses[0]
-    return f"총 {total_interview}회 인터뷰에서 '{top_weakness.label_display_name}'이(가) {top_weakness.occurrence_count}회 발견되었습니다. {top_weakness.improvement_guide}"
+    trend_text = f" {top_trend}" if top_trend else ""
+    return (
+        f"총 {total_interview}회 인터뷰에서 '{top_weakness.label_display_name}'이(가) "
+        f"{top_weakness.occurrence_count}회 발견되었습니다.{trend_text} {top_weakness.improvement_guide}"
+    )
 
 
 # 지표 변화 요약 문장 생성

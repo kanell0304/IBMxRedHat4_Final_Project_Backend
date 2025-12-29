@@ -88,7 +88,8 @@ def build_prompt(
         - BERT 결과 중 "formality_inconsistency", "disfluency_repetition", "vague", "ending_da"를 참고하세요.
 
 
-    - 언어 정확성 점수 결정 시, BERT 라벨 중 "slang", "biased", "curse"의 label과 score를 우선적으로 반영하세요.
+    - 언어 정확성 점수 결정 시, BERT 라벨 중 "slang", "biased", "curse"의 label과 score를 우선적으로 반영하되,
+      실제 텍스트가 '차별/비하/욕설'에 해당하는지 한 번 더 확인하세요. 단순한 짧은 대답(예: "네.", "맞습니다.")은 편향/욕설로 판단하지 않습니다.
     - 발화 간결성 점수를 정할 때는 BERT 라벨 중 "filler"만을 가장 중요하게 반영하세요.
     - 구조 명확성 점수를 결정할 때 "formality_inconsistency", "disfluency_repetition", "vague", "ending_da" 네 가지를 종합적으로 고려하세요.
 

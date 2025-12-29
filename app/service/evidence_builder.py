@@ -7,14 +7,16 @@ def build_evidence_sentences(
         raw_sentences:List[Dict[str, Any]],
         limit:int=3
         )->List[EvidenceSentence]:
-    
-    return[
+    filtered = [s for s in raw_sentences if str(s.get("text", "")).strip()]
+    target = filtered if filtered else []
+
+    return [
         EvidenceSentence(
             text=sent.get("text", ""),
             answer_id=sent.get("answer_id", 0),
             session_id=sent.get("session_id", 0)
         )
-        for sent in raw_sentences[-limit:]
+        for sent in target[-limit:]
     ]
 
 
@@ -31,7 +33,8 @@ def build_similar_answer_links(
 
     links:List[SimilarAnswerLink]=[]
 
-    if not chroma_query_result.get("ids") or len(chroma_query_result["ids"])==0:
+    ids = chroma_query_result.get("ids")
+    if ids is None or len(ids)==0:
         return links
     
     for i in range(len(chroma_query_result["ids"][0])):
@@ -66,7 +69,9 @@ def build_similar_answer_links(
 def extract_chroma_sentences(
         chroma_get_result:dict,
 )->List[Dict[str, Any]]:
-    if not chroma_get_result.get("metadatas") or not chroma_get_result.get("documents"):
+    metas = chroma_get_result.get("metadatas")
+    docs = chroma_get_result.get("documents")
+    if metas is None or docs is None or len(metas)==0 or len(docs)==0:
         return []
     
     sentences=[]
@@ -80,6 +85,3 @@ def extract_chroma_sentences(
 
 
     return sentences
-
-
-
