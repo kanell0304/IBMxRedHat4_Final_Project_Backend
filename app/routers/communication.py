@@ -278,12 +278,16 @@ async def get_audio_file(c_id: int, db: AsyncSession = Depends(get_db)):
     if not voice_file:
         raise HTTPException(status_code=404, detail="Audio file not found")
 
-    # WAV 파일로 반환
+    from urllib.parse import quote
+
+    # UTF-8 파일명 인코딩 (RFC 5987)
+    filename_encoded = quote(voice_file.filename) if voice_file.filename else "audio.wav"
+
     return Response(
         content=voice_file.data,
         media_type="audio/wav",
         headers={
-            "Content-Disposition": f"inline; filename={voice_file.filename}",
+            "Content-Disposition": f'inline; filename="audio.wav"; filename*=UTF-8\'\'{filename_encoded}',
             "Accept-Ranges": "bytes"
         }
     )
