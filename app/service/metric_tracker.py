@@ -8,16 +8,26 @@ from app.service.copy_builder import build_metric_change_summary
 # 지표 변화 분석
 async def get_metric_changes(db:AsyncSession, user_id:int)->MetricChangeCardResponse:
 
-    # 1. 사용자의 모든 완료된 한국어 인터뷰 시간순으로 조회
+    def is_korean(lang: str) -> bool:
+        if lang is None:
+            return True  # 기본값 ko
+        lowered=str(lang).strip().lower()
+        if lowered=="":
+            return True
+        return lowered.startswith("ko")
+
+    # 1. 사용자의 모든 완료된 인터뷰 조회 후 한국어만 선별 (언어 비어 있으면 포함)
     stmt=(
         select(Interview)
         .where(Interview.user_id==user_id)
         .where(Interview.status==2)
-        .where(Interview.language=='ko')
         .order_by(Interview.created_at.asc())
     )
     result=await db.execute(stmt)
-    interviews=result.scalars().all()
+    all_interviews=result.scalars().all()
+    interviews=[i for i in all_interviews if is_korean(getattr(i, "language", None))]
+    if len(interviews)==0 and len(all_interviews)>0:
+        interviews=all_interviews  # 언어값이 비어있는 경우 폴백
 
     total_interviews=len(interviews)
 
@@ -146,7 +156,14 @@ def calculate_metric_changes(
         if prev_val==0:
             continue
 
-        change_percent=((recent_val-prev_val)/prev_val)*100
+        # 분모가 너무 작을 때 과도한 퍼센트가 나오지 않도록 보호
+        denom = prev_val if abs(prev_val) >= 0.1 else 0.1
+        change_percent=((recent_val-prev_val)/denom)*100
+        # 100% 이상/이하로는 표시하지 않음
+        if change_percent > 100:
+            change_percent = 100
+        if change_percent < -100:
+            change_percent = -100
 
         if abs(change_percent)<10:
             continue
@@ -183,21 +200,21 @@ def calculate_metric_changes(
 
 # 긍정적 변화 판단
 def is_positive_change(metric_key:str, direction:str)->bool:
-    
     # 상승이 좋은 지표
-    positive_on_up=["speech_rate_wpm", "avg_confidence"]
+    positive_on_up = ["speech_rate_wpm", "avg_confidence"]
 
     # 하락이 좋은 지표
-    positive_on_down=["pause_count", "silence_ratio"]
+    positive_on_down = ["pause_count", "silence_ratio"]
 
     if any(key in metric_key for key in positive_on_up):
-        return direction=="up"
-    elif any(key in metric_key for key in positive_on_down):
-        return direction=="down"
-    elif "bert_" in metric_key:
-        return direction=="down"
-    else:
-        return False
+        return direction == "up"
+    if any(key in metric_key for key in positive_on_down):
+        return direction == "down"
+    # bert 라벨 점수는 낮을수록 좋음
+    if "bert_" in metric_key:
+        return direction == "down"
+    # 알 수 없으면 상승을 개선으로 간주
+    return direction == "up"
 
 
 # 한글 지표 이름 매핑
@@ -217,4 +234,3 @@ def get_metric_display_name(key:str)->str:
         "bert_ending_da":"'-다' 종결형",
     }
     return mapping.get(key, key.replace("bert_", "").replace("_", " ").title())
-
