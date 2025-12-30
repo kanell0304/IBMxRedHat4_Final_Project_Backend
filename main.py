@@ -72,7 +72,7 @@ app = FastAPI(title="Team Project API", description="음성 분석 API", version
 # CORS 설정: 환경 변수에서 허용할 도메인 목록 가져오기
 allowed_origins = os.getenv(
     "ALLOWED_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,http://st-each.com"
+    "http://localhost:5173,http://127.0.0.1:5173,http://api.st-each.com"
 ).split(",")
 
 app.add_middleware(
