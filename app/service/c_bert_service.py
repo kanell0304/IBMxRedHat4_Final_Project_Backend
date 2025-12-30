@@ -1,32 +1,29 @@
 import torch
 import re
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from peft import PeftModel, PeftConfig
+from peft import PeftModel
 from typing import Optional
 
 # 베이스 모델을 먼저 로드하고 그 다음으로 어댑터 가중치를 얹어서 추론
 class InferenceService:
-  def __init__(self, max_len: int = 64, local_files_only: bool = False, device_mode: str = "cpu"):
+  def __init__(self, max_len: int = 64, local_files_only: bool = False, device_mode: str = "auto"):
     self.model_name = "taeeho/c_bert_lora"
+    self.base_model_name = "bert-base-multilingual-cased"
     self.labels = ["slang", "biased", "curse", "filler"]
     self.max_len = max_len
     self.device = torch.device("cuda" if device_mode == "auto" and torch.cuda.is_available() else "cpu")
 
-    config = PeftConfig.from_pretrained(self.model_name, local_files_only=local_files_only)
-
+    self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, local_files_only=local_files_only)
     base = AutoModelForSequenceClassification.from_pretrained(
-      config.base_model_name_or_path,
+      self.base_model_name,
       num_labels=len(self.labels),
+      problem_type="multi_label_classification",
       local_files_only=local_files_only,
     )
-    base.config.id2label = {i: label for i, label in enumerate(self.labels)}
-    base.config.label2id = {label: i for i, label in enumerate(self.labels)}
-    base.config.problem_type = "multi_label_classification"
 
     self.model = PeftModel.from_pretrained(base, self.model_name, local_files_only=local_files_only)
     self.model.to(self.device)
     self.model.eval()
-    self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, local_files_only=local_files_only)
     
     self.CURSE_WORDS = ["존나", "씨발", "병신", "개새끼", "좆", "좆같"]
     # 부분 일치로도 잡을 단어들
