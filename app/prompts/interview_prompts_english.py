@@ -20,67 +20,117 @@ def build_english_interview_prompt(
 
     qa_lines=[]
     for i, qa in enumerate(qa_list, 1):
-        qa_lines.append(f"Q{i}:{qa.get('question', '')}")
-        qa_lines.append(f"A{i}:{qa.get('answer', '')}")
+        qa_lines.append(f"Q{i}: {qa.get('question', '')}")
+        qa_lines.append(f"A{i}: {qa.get('answer', '')}")
         qa_lines.append("")
     qa_block="\n".join(qa_lines)
 
-    prompt=f"""당신은 영어 면접 코치입니다. 다음 영어 면접 성과를 분석해주세요.
+    prompt=f"""You are an experienced English interview coach evaluating a mock interview performance.
 
-[면접 전체 스크립트]
+[INTERVIEW TRANSCRIPT]
 {transcript}
 
-[질문/답변]
+[Q&A PAIRS]
 {qa_block}
 
-[발화 메트릭]
-- 말하기 속도(WPM):{speech_rate:.2f}
-- 침묵 비율(pause ratio):{pause_ratio:.1%}
-- 확실한 추임새(hard filler:uh/um/er/ah 등):{filler_hard}회
-- 조건부 추임새(soft filler:like/so/well 등):{filler_soft}회
+[SPEECH METRICS]
+- Speaking rate (WPM): {speech_rate:.2f}
+- Pause ratio: {pause_ratio:.1%}
+- Hard fillers (uh/um/er/ah): {filler_hard} times
+- Soft fillers (like/so/well): {filler_soft} times
 
-[평가 기준(참고)]
-1) 말하기 속도(WPM)
-- 120 미만:느려서 답변이 약해 보일 수 있음(다만 신중한 답변이면 예외 가능)
-- 120~170:일반적으로 안정적
-- 170 초과:빠르게 들릴 수 있어 발음/명료성이 떨어지면 감점
+[SCORING CRITERIA - Must apply strictly]
 
-2) 침묵 비율(pause ratio)
-- 0~15%:매우 안정적
-- 15~30%:보통
-- 30% 초과:끊김이 잦아 유창성 저하 가능
+**Content Quality (50 points)**
+- Relevance to question (0-15 pts)
+  * 13-15: Directly addresses all aspects of the question
+  * 10-12: Addresses main question but misses some points
+  * 7-9: Partially relevant, some deviation
+  * 0-6: Off-topic or minimal relevance
 
-3) 추임새
-- hard filler는 대부분 불필요한 머뭇거림으로 간주
-- soft filler는 문맥상 정상일 수 있으나 과도하면 감점 가능
+- Structure & Logic (0-15 pts)
+  * 13-15: Clear introduction/body/conclusion with logical flow
+  * 10-12: Organized but some transitions are weak
+  * 7-9: Basic structure but disjointed
+  * 0-6: No clear structure
 
-[요구사항]
-아래 4가지를 제공해라:
-1) 종합 점수(0~100 정수)
-2) 코멘트 3줄(각 1문장, 한국어):
-   - 내용(구성/논리/구체성)
-   - 전달/유창성(속도/침묵/추임새 포함) — 수치를 근거로 언급할 것
-   - 전반적 총평
-3) 개선사항 2~3개(각 1문장, 한국어):
-   - 가장 임팩트 큰 개선 포인트
-   - 구체적이고 실행 가능한 행동 제안
+- Specificity & Examples (0-20 pts)
+  * 17-20: Multiple concrete examples with details
+  * 13-16: Some examples but lacking depth
+  * 9-12: Vague or generic statements
+  * 0-8: No specific examples
 
-반드시 JSON만 출력해라. 다른 텍스트/설명은 금지.
-출력 형식:
+**Fluency & Delivery (30 points)**
+- Speaking Rate (0-10 pts)
+  * 9-10: 140-170 WPM (optimal)
+  * 7-8: 120-139 or 171-190 WPM (acceptable)
+  * 4-6: 100-119 or 191-210 WPM (too slow/fast)
+  * 0-3: <100 or >210 WPM (problematic)
+
+- Pauses & Flow (0-10 pts)
+  * 9-10: Pause ratio 0-15% (smooth)
+  * 7-8: Pause ratio 15-25% (acceptable)
+  * 4-6: Pause ratio 25-35% (choppy)
+  * 0-3: Pause ratio >35% (very disjointed)
+
+- Filler Words (0-10 pts)
+  * 9-10: 0-2 hard fillers, 0-5 soft fillers
+  * 7-8: 3-5 hard fillers, 6-10 soft fillers
+  * 4-6: 6-10 hard fillers, 11-15 soft fillers
+  * 0-3: >10 hard fillers or >15 soft fillers
+
+**Language & Grammar (20 points)**
+- Grammar accuracy (0-10 pts)
+  * 9-10: No errors or only minor slips
+  * 7-8: Few errors, meaning clear
+  * 4-6: Multiple errors affecting clarity
+  * 0-3: Frequent errors impeding understanding
+
+- Vocabulary & Expression (0-10 pts)
+  * 9-10: Varied, professional vocabulary
+  * 7-8: Adequate vocabulary, some repetition
+  * 4-6: Limited vocabulary, frequent repetition
+  * 0-3: Very basic or inappropriate words
+
+[GRADING SCALE]
+- 90-100: S (Outstanding - Ready for top companies)
+- 80-89: A (Strong - Minor improvements needed)
+- 70-79: B (Good - Solid performance with room to grow)
+- 60-69: C (Average - Needs significant practice)
+- Below 60: D (Weak - Major improvements required)
+
+[REQUIREMENTS]
+1. Calculate the EXACT score (0-100) by adding points from each category above
+2. Provide grade (S/A/B/C/D) based on the score
+3. Write 3 comments in Korean:
+   - Content quality (structure, relevance, specificity)
+   - Delivery & fluency (cite exact metrics: WPM={speech_rate:.0f}, pause={pause_ratio:.0%}, fillers={filler_hard})
+   - Overall assessment
+4. Write 2-3 improvements in Korean:
+   - Must be SPECIFIC and ACTIONABLE
+   - Focus on the LOWEST scoring categories
+   - If content is weak: suggest structure frameworks or example-building techniques
+   - If delivery is weak: suggest pacing exercises or filler reduction methods
+   - If grammar/vocab is weak: suggest language learning resources
+
+Output ONLY valid JSON. No other text.
 {{
-  "score":<number>,
-  "comments":[
+  "score": <number>,
+  "comments": [
     "<comment 1>",
     "<comment 2>",
     "<comment 3>"
   ],
-  "improvements":[
+  "improvements": [
     "<improvement 1>",
-    "<improvement 2>"
+    "<improvement 2>",
+    "<optional improvement 3>"
   ]
 }}
 """
     return prompt.strip()
 
 
-ENGLISH_SYSTEM_MESSAGE="너는 영어 면접 평가자다. 반드시 유효한 JSON만 출력해라."
+ENGLISH_SYSTEM_MESSAGE="""You are a professional English interview evaluator.
+Score strictly according to the rubric provided.
+Output ONLY valid JSON with no additional text."""

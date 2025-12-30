@@ -348,6 +348,7 @@ async def create_i(payload: I_Create, db: AsyncSession = Depends(get_db)):
         interview_type=payload.interview_type,
         category_id=payload.category_id,
         total_questions=payload.total_questions,
+        language=payload.language,
     )
 
 
