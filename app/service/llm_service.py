@@ -15,12 +15,15 @@ class OpenAIService:
         self.model=settings.openai_model
 
     async def generate_report(
-            self, 
-            transcript:str, 
+            self,
+            transcript:str,
             bert_analysis:Dict,
             stt_metrics:Optional[Dict[str, Any]]=None,
             qa_list:Optional[List[Dict[str, Any]]]=None,
             )->I_Report:
+
+            expected_question_count = len(qa_list) if qa_list else 0
+            print(f"[DEBUG LLM] 예상 질문 개수: {expected_question_count}")
 
             prompt=build_prompt(
                  transcript=transcript,
@@ -62,6 +65,17 @@ class OpenAIService:
                     for per_q in data["content_per_question"]:
                         if "score" in per_q:
                             per_q["grade"] = score_to_grade(per_q["score"])
+
+                # 질문 개수 검증
+                if expected_question_count > 0:
+                    actual_count = len(data.get("content_per_question", []))
+                    print(f"[DEBUG LLM] LLM이 생성한 질문별 평가 개수: {actual_count}")
+                    if actual_count != expected_question_count:
+                        print(f"[ERROR LLM] 질문 개수 불일치! 예상: {expected_question_count}, 실제: {actual_count}")
+                        raise ValueError(
+                            f"질문별 평가 개수 불일치: 예상 {expected_question_count}개, 실제 {actual_count}개. "
+                            f"LLM이 모든 질문에 대해 평가를 생성하지 않았습니다."
+                        )
 
                 # 이제 Pydantic 모델로 검증
                 report = I_Report.model_validate(data)

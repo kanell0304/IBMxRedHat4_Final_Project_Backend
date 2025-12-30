@@ -28,6 +28,7 @@ def build_prompt(
 """
         
     qa_block=""
+    total_questions = 0
     if qa_list:
         qa_lines=[]
         for idx, item in enumerate(qa_list, start=1):
@@ -35,6 +36,7 @@ def build_prompt(
             a=item.get("answer", "")
             qa_lines.append(f"Q{idx}. {q}\nA{idx}. {a}\n")
         qa_block="\n".join(qa_lines)
+        total_questions = len(qa_list)
 
 
 
@@ -139,8 +141,10 @@ def build_prompt(
 
 [질문별 평가 세부 지침]
 **매우 중요:
-1. [질문별 Q/A 목록]에 나열된 모든 질문(Q1, Q2, Q3, ...)에 대해 빠짐없이 평가하세요.
-2. 각 질문별 평가는 반드시 서로 달라야 합니다.**
+1. [질문별 Q/A 목록]에는 총 {total_questions}개의 질문이 있습니다.
+2. content_per_question 배열에는 정확히 {total_questions}개의 항목이 있어야 합니다.
+3. q_index는 1부터 {total_questions}까지 순서대로 있어야 합니다.
+4. 각 질문별 평가는 반드시 서로 달라야 합니다.**
 
 1. 질문 의도 파악 (question_intent):
    - 각 질문이 무엇을 묻고 있는지 명확히 분석하세요.
@@ -248,9 +252,11 @@ def build_prompt(
         "question_intent": "<질문의 의도를 한 문장으로 요약>",
         "is_appropriate": <true 또는 false, 답변이 질문 의도에 맞는지>,
         "evidence_sentences": ["<근거가 되는 사용자 답변 문장1>", "<근거가 되는 사용자 답변 문장2>"]
-        }},
-        ... (위 [질문별 Q/A 목록]의 모든 질문에 대해 동일한 형식으로 평가)
+        }}
+        ... (Q3, Q4, ... Q{total_questions}까지 동일한 형식으로 계속)
     ],
+
+    **중요: content_per_question 배열에는 정확히 {total_questions}개의 항목(q_index 1~{total_questions})이 있어야 합니다.**
 
     "overall_comment":"<전체적인 총평을 15~20문장으로 상세하게 작성. 언어 정확성, 발화 간결성, 구조 명확성 각각에 대한 평가와 함께 내용 적절성, 질문별 답변 차별성, 전반적인 인상, 강점, 약점, 개선 방향을 종합적으로 서술하세요.>"
 

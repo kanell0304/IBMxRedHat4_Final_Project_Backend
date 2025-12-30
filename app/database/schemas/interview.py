@@ -146,6 +146,7 @@ class I_StartQ(BaseModel):
     q_id: int
     q_order: int
     question_text: str
+    answer_id: int
     class Config:
         from_attributes = True
 
@@ -163,7 +164,7 @@ class I_Create(BaseModel):
     interview_type: InterviewType
     category_id: Optional[int] = None
     total_questions: int = Field(default=5, gt=0)
-    language: str = Field(default="ko", description="Interview language (ko/en)")
+    language: str = Field(default="ko")
 
 
 # 인터뷰 목록

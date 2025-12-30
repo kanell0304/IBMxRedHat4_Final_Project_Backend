@@ -366,11 +366,13 @@ async def i_start_session(db, payload: I_StartReq) -> I_StartRes:
         for order, question in enumerate(random.sample(questions, len(questions)), start=1):
             answer = InterviewAnswer(i_id=interview.i_id, q_id=question.q_id, q_order=order)
             db.add(answer)
+            await db.flush()  # answer_id를 받기 위해 flush
             questions_out.append(
                 I_StartQ(
                     q_id=question.q_id,
                     q_order=order,
                     question_text=question.question_text,
+                    answer_id=answer.i_answer_id,  # 생성된 answer_id 포함
                 )
             )
 

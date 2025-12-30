@@ -28,21 +28,44 @@ async def get_immediate_result(i_id:int, db:AsyncSession)->ImmediateResultRespon
 
     question_details:List[QuestionDetailEvaluation]=[]
 
+    # DB의 모든 답변을 가져오기 (transcript가 있는 것만)
+    valid_answers = [a for a in interview.answers if a.transcript and a.transcript.strip()]
+
+    # LLM 평가와 매칭하기 위한 딕셔너리
+    llm_evaluations = {}
     if hasattr(overall_report, 'content_per_question') and overall_report.content_per_question:
-        answers=interview.answers
-
         for per_q in overall_report.content_per_question:
-            matching_answer=next((a for a in answers if a.q_order==per_q.q_index), None)
-            user_answer=matching_answer.transcript if (matching_answer and matching_answer.transcript) else ""
+            llm_evaluations[per_q.q_index] = per_q
 
+    # DB 답변 기준으로 질문별 평가 생성
+    for answer in sorted(valid_answers, key=lambda a: a.q_order):
+        question = None
+        if answer.q_id:
+            question = await crud.get_question(db, answer.q_id)
+
+        # LLM 평가가 있으면 사용, 없으면 기본값
+        llm_eval = llm_evaluations.get(answer.q_order)
+
+        if llm_eval:
             question_details.append(QuestionDetailEvaluation(
-                q_index=per_q.q_index,
-                q_text=per_q.q_text,
-                user_answer=user_answer,
-                question_intent=per_q.question_intent,
-                is_appropriate=per_q.is_appropriate,
-                feedback=per_q.suggestion,
-                evidence_sentences=per_q.evidence_sentences
+                q_index=answer.q_order,
+                q_text=llm_eval.q_text,
+                user_answer=answer.transcript or "",
+                question_intent=llm_eval.question_intent,
+                is_appropriate=llm_eval.is_appropriate,
+                feedback=llm_eval.suggestion,
+                evidence_sentences=llm_eval.evidence_sentences
+            ))
+        else:
+            # LLM 평가가 없는 경우 기본값
+            question_details.append(QuestionDetailEvaluation(
+                q_index=answer.q_order,
+                q_text=question.question_text if question else "",
+                user_answer=answer.transcript or "",
+                question_intent="",
+                is_appropriate=False,
+                feedback="평가가 생성되지 않았습니다.",
+                evidence_sentences=[]
             ))
 
     similar_hint=await find_similar_answer_hint(db, interview.user_id, i_id)

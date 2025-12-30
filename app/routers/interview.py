@@ -50,13 +50,24 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
             answers=interview.answers
             if not answers:
                 raise HTTPException(status_code=400, detail="답변이 없습니다.")
-            
+
+            # 디버깅: 전체 답변 개수 확인 (영어)
+            print(f"[DEBUG EN] 전체 답변 개수: {len(answers)}")
+            for idx, ans in enumerate(answers):
+                print(f"[DEBUG EN] 답변 {idx+1}: answer_id={ans.i_answer_id}, q_order={ans.q_order}, "
+                      f"transcript={'있음' if ans.transcript and ans.transcript.strip() else 'NULL/빈값'}")
+
+            # transcript가 있는 답변만 필터링
+            valid_answers = [a for a in answers if a.transcript and a.transcript.strip()]
+            print(f"[DEBUG EN] 유효한 답변 개수: {len(valid_answers)}")
+
+            if not valid_answers:
+                raise HTTPException(status_code=400, detail="처리된 답변이 없습니다.")
+
             transcripts=[]
             qa_list=[]
 
-            for answer in answers:
-                if not answer.transcript:
-                    continue
+            for answer in valid_answers:
                 transcripts.append(answer.transcript)
 
                 question=await crud.get_question(db, answer.q_id) if answer.q_id else None
@@ -82,7 +93,7 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
             }
 
             valid_count=0
-            for answer in answers:
+            for answer in valid_answers:
                 if answer.stt_metrics_json:
                     avg_stt_metrics["speech_rate"]+=answer.stt_metrics_json.get("speech_rate", 0)
                     avg_stt_metrics["pause_ratio"]+=answer.stt_metrics_json.get("pause_ratio", 0)
@@ -132,15 +143,24 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
         if not answers:
             raise HTTPException(status_code=400, detail="답변이 없습니다.")
 
-        
+        # 디버깅: 전체 답변 개수 확인
+        print(f"[DEBUG] 전체 답변 개수: {len(answers)}")
+        for idx, ans in enumerate(answers):
+            print(f"[DEBUG] 답변 {idx+1}: answer_id={ans.i_answer_id}, q_order={ans.q_order}, "
+                  f"transcript={'있음' if ans.transcript and ans.transcript.strip() else 'NULL/빈값'}")
+
+        # transcript가 있는 답변만 필터링
+        valid_answers = [a for a in answers if a.transcript and a.transcript.strip()]
+        print(f"[DEBUG] 유효한 답변 개수: {len(valid_answers)}")
+
+        if not valid_answers:
+            raise HTTPException(status_code=400, detail="처리된 답변이 없습니다.")
+
         transcripts=[]
         bert_labels_list=[]
         qa_list=[]
 
-        for answer in answers:
-            if not answer.transcript:
-                continue
-
+        for answer in valid_answers:
             transcripts.append(answer.transcript)
 
             if answer.labels_json:
@@ -405,11 +425,44 @@ async def get_results(i_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="인터뷰를 찾을 수 없습니다.")
 
     for result in results:
-        if result.scope == "overall" and "content_per_question" in result.report:
-            answers = interview.answers
-            for per_q in result.report["content_per_question"]:
-                matching_answer = next((a for a in answers if a.q_order == per_q["q_index"]), None)
-                per_q["user_answer"] = matching_answer.transcript if matching_answer else ""
+        if result.scope == "overall":
+            # DB의 모든 답변을 가져오기 (transcript가 있는 것만)
+            valid_answers = [a for a in interview.answers if a.transcript and a.transcript.strip()]
+
+            # LLM 평가와 매칭하기 위한 딕셔너리
+            llm_evaluations = {}
+            if "content_per_question" in result.report:
+                for per_q in result.report["content_per_question"]:
+                    llm_evaluations[per_q["q_index"]] = per_q
+
+            # DB 답변 기준으로 새로운 content_per_question 생성
+            new_content_per_question = []
+
+            for answer in sorted(valid_answers, key=lambda a: a.q_order):
+                question = None
+                if answer.q_id:
+                    from app.database.crud.interview import get_question
+                    question = await get_question(db, answer.q_id)
+
+                # LLM 평가가 있으면 사용, 없으면 기본값
+                llm_eval = llm_evaluations.get(answer.q_order, {})
+
+                per_q_data = {
+                    "q_index": answer.q_order,
+                    "q_text": question.question_text if question else "",
+                    "user_answer": answer.transcript or "",
+                    "score": llm_eval.get("score", 0),
+                    "grade": llm_eval.get("grade", "D"),
+                    "comment": llm_eval.get("comment", "평가가 생성되지 않았습니다."),
+                    "suggestion": llm_eval.get("suggestion", "평가가 생성되지 않았습니다."),
+                    "question_intent": llm_eval.get("question_intent", ""),
+                    "is_appropriate": llm_eval.get("is_appropriate", False),
+                    "evidence_sentences": llm_eval.get("evidence_sentences", [])
+                }
+                new_content_per_question.append(per_q_data)
+
+            # 기존 LLM 평가를 DB 기준으로 교체
+            result.report["content_per_question"] = new_content_per_question
 
     return results
 
