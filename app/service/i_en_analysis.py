@@ -67,16 +67,17 @@ async def analyze_english_interview(
         "comments":result.get(
             "comments",
             [
-                "내용은 전반적으로 무난하지만 핵심 메시지와 근거 예시가 더 필요합니다.",
-                f"말하기 속도 {speech_rate:.0f} WPM, 침묵 비율 {pause_ratio:.0%}, hard filler {filler_hard}회로 유창성은 보통 수준입니다.",
-                "전반적으로 안정적인 답변이지만 구체성을 높이면 더욱 좋습니다.",
+                "답변의 구조와 논리성은 갖추었으나 구체적인 예시가 부족합니다.",
+                f"발화 속도 {speech_rate:.0f} WPM, 침묵 비율 {pause_ratio:.0%}, hard filler {filler_hard}회로 전달력은 평균 수준입니다.",
+                "전반적으로 이해 가능한 답변이지만 더 많은 연습이 필요합니다.",
             ],
         ),
         "improvements":result.get(
             "improvements",
             [
-                "답변을 2~3개의 포인트로 먼저 구조화한 뒤, 각 포인트마다 1개의 구체 예시를 붙이는 연습을 하세요.",
-                "말하기 전 2~3초 멈추고 답변 구조를 머릿속으로 정리한 뒤 시작하세요.",
+                "STAR 기법(Situation-Task-Action-Result)을 사용하여 답변에 구조를 부여하고 구체적인 사례를 포함하세요.",
+                "발화 전 2-3초 멈추고 답변의 핵심 포인트 3가지를 먼저 정리한 뒤 말하는 연습을 하세요.",
+                "Hard filler(uh, um) 대신 짧은 침묵을 활용하고, 140-160 WPM 속도를 유지하는 연습을 하세요.",
             ],
         ),
         "stt_metrics":stt_metrics,

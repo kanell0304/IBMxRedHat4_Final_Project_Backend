@@ -4,13 +4,14 @@ from sqlalchemy.orm import selectinload
 from app.database.models.interview import Interview, InterviewAnswer, InterviewResult, InterviewType, InterviewQuestion, QuestionType, DifficultyLevel
 
 # mock interview
-async def create_i(db, user_id:int, interview_type:InterviewType, category_id:Optional[int], total_questions:int):
+async def create_i(db, user_id:int, interview_type:InterviewType, category_id:Optional[int], total_questions:int, language:str="ko"):
   interview = Interview(
     user_id=user_id,
     interview_type=interview_type,
     category_id=category_id,
     total_questions=total_questions,
     status=0,
+    language=language,
   )
   db.add(interview)
   await db.commit()

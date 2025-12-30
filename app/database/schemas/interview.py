@@ -163,6 +163,7 @@ class I_Create(BaseModel):
     interview_type: InterviewType
     category_id: Optional[int] = None
     total_questions: int = Field(default=5, gt=0)
+    language: str = Field(default="ko", description="Interview language (ko/en)")
 
 
 # 인터뷰 목록
@@ -175,6 +176,7 @@ class I_Basic(BaseModel):
     total_questions: int
     current_question: int
     created_at: datetime
+    language: str = "ko"
     class Config:
         from_attributes = True
 
