@@ -109,6 +109,14 @@ class CBERTResult(Base):
     communication: Mapped["Communication"] = relationship("Communication", back_populates="bert_result")
     result: Mapped[Optional["CResult"]] = relationship("CResult", back_populates="bert_result", uselist=False, cascade="all, delete-orphan")
 
+    @property
+    def standard_score(self) -> float:
+        """Pydantic 변환을 위한 계산 프로퍼티"""
+        total_issues = self.slang + self.biased + self.curse + self.filler
+        if total_issues == 0:
+            return 10.0
+        return max(0.0, 10.0 - (total_issues * 2.5))
+
 
 class CResult(Base):
     __tablename__ = "c_results"

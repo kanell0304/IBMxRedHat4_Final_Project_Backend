@@ -51,7 +51,7 @@ class BERTResultResponse(BaseModel):
     filler: int
     biased: int
     slang: int
-    standard_score: Optional[float] = None
+    standard_score: float = 0.0
     analyzed_segments: Optional[dict]
     created_at: datetime
 
