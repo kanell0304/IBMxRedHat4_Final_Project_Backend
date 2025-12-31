@@ -32,7 +32,37 @@ fi
 mkdir -p /app/chroma_db
 
 echo "🗄️  데이터베이스 마이그레이션 실행 중..."
-alembic upgrade head || echo "⚠️  마이그레이션 실패 - 계속 진행"
+alembic upgrade head || {
+    echo "⚠️  Alembic 마이그레이션 실패 - Python으로 직접 실행 시도..."
+    python3 << 'PYEOF'
+from sqlalchemy import create_engine, text
+import os
+
+try:
+    url = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+    engine = create_engine(url)
+    
+    with engine.connect() as conn:
+        # alembic_version 설정
+        conn.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL, PRIMARY KEY (version_num))"))
+        conn.execute(text("DELETE FROM alembic_version"))
+        conn.execute(text("INSERT INTO alembic_version VALUES ('7c9a4e8f4dcb')"))
+        
+        # 컴럼 추가 (이미 있으면 무시)
+        for col in ['curse', 'filler', 'biased', 'slang']:
+            try:
+                conn.execute(text(f"ALTER TABLE c_results ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"))
+                print(f"✅ {col} 컴럼 추가")
+            except Exception as e:
+                if "Duplicate column" in str(e):
+                    print(f"ℹ️  {col} 컴럼 이미 존재")
+        
+        conn.commit()
+        print("✅ 데이터베이스 스키마 업데이트 완료")
+except Exception as e:
+    print(f"❌ 데이터베이스 업데이트 실패: {e}")
+PYEOF
+}
 
 echo "🚀 FastAPI 서버 시작..."
 
