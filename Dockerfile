@@ -11,9 +11,10 @@ RUN apt-get update && \
     ffmpeg \
   && rm -rf /var/lib/apt/lists/*
 
-# requirements.txt 복사 및 설치
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# requirements_deploy.txt 복사 및 설치
+COPY requirements_deploy.txt .
+RUN pip install --upgrade pip
+RUN pip install --no-cache-dir -r requirements_deploy.txt
 
 # 불필요한 캐시 정리
 RUN find /usr/local/lib/python3.10 -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true \
