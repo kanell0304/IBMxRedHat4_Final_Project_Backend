@@ -40,9 +40,8 @@ soxr==1.0.0
 pydub==0.25.1
 numba==0.63.0
 
-# Whisper and Dependencies
-openai-whisper==20231117
-# triton은 torch가 자동으로 설치 (torch 2.9.1 requires triton==3.5.1)
+# Whisper and Dependencies (최신 버전 사용으로 triton 3.x 호환)
+openai-whisper
 
 # Google Cloud
 google-cloud-speech==2.34.0
