@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from app.routers import voice_analysis, user, interview, jobs, image, presentation, communication, community, minigame
 from contextlib import asynccontextmanager
 from app.database.database import create_tables
@@ -68,6 +69,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Team Project API", description="음성 분석 API", version="1.0.0", lifespan=lifespan)
+
+# ProxyHeaders 미들웨어 추가 (ALB/CloudFront의 HTTPS 정보 인식)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # CORS 설정: 환경 변수에서 허용할 도메인 목록 가져오기
 allowed_origins = os.getenv(
