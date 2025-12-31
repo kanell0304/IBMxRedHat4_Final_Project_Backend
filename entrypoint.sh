@@ -31,6 +31,9 @@ fi
 # ChromaDB 디렉토리 생성
 mkdir -p /app/chroma_db
 
+echo "🗄️  데이터베이스 마이그레이션 실행 중..."
+alembic upgrade head || echo "⚠️  마이그레이션 실패 - 계속 진행"
+
 echo "🚀 FastAPI 서버 시작..."
 
 # Uvicorn 실행
