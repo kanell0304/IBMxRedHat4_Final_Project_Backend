@@ -143,3 +143,4 @@ websocket-client==1.9.0
 websockets==15.0.1
 wrapt==1.17.3
 zipp==3.23.0
+openai-whisper==20231117
