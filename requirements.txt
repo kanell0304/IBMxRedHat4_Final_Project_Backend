@@ -137,9 +137,10 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 urllib3==2.3.0
 uvicorn==0.24.0
-uvloop==0.22.1
+uvloop==0.22.1; sys_platform != 'win32'
 watchfiles==1.1.1
 websocket-client==1.9.0
 websockets==15.0.1
 wrapt==1.17.3
 zipp==3.23.0
+openai-whisper==20231117
