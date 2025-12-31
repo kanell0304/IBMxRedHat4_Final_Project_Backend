@@ -42,7 +42,7 @@ numba==0.63.0
 
 # Whisper and Dependencies
 openai-whisper==20231117
-triton>=2.0.0,<3
+# triton은 torch가 자동으로 설치 (torch 2.9.1 requires triton==3.5.1)
 
 # Google Cloud
 google-cloud-speech==2.34.0
