@@ -111,8 +111,16 @@ class VoiceAnalyzer:
                 speech_rate_total = estimated_syllables / duration
                 speech_rate_actual = estimated_syllables / total_speech_time if total_speech_time > 0 else 0
             else:
-                speech_rate_total = None
-                speech_rate_actual = None
+                # estimated_syllables가 없을 경우 자동 추정
+                # 한국어 평균 발화 속도: 약 4.5 음절/초
+                # 실제 말한 시간을 기준으로 음절 수 추정
+                if total_speech_time > 0:
+                    estimated_total_syllables = total_speech_time * 4.5  # 평균 발화 속도 기준
+                    speech_rate_total = estimated_total_syllables / duration
+                    speech_rate_actual = 4.5  # 기본값으로 평균 발화 속도 사용
+                else:
+                    speech_rate_total = 0
+                    speech_rate_actual = 0
 
             # 기타 특징
             energy_std = np.std(rms) # 에너지 표준편차
@@ -132,8 +140,8 @@ class VoiceAnalyzer:
                 'avg_pitch': float(avg_pitch),
                 'pitch_std': float(pitch_std),
                 'pitch_range': float(pitch_range),
-                'speech_rate_total': float(speech_rate_total) if speech_rate_total else None,
-                'speech_rate_actual': float(speech_rate_actual) if speech_rate_actual else None,
+                'speech_rate_total': float(speech_rate_total) if speech_rate_total is not None else 0.0,
+                'speech_rate_actual': float(speech_rate_actual) if speech_rate_actual is not None else 0.0,
                 'num_segments': int(num_segments),
                 'avg_segment_length': float(avg_segment_length),
                 'energy_std': float(energy_std),
@@ -165,23 +173,16 @@ class VoiceAnalyzer:
             if hasattr(self.emotion_model, 'predict_proba'):
                 emotion_proba = self.emotion_model.predict_proba(features_scaled)[0]
 
-                # 전체 감정별 확률
+                # 전체 감정별 확률 (6개 모두)
                 all_emotion_scores = {self.idx_to_emotion[i]: float(prob * 100) for i, prob in enumerate(emotion_proba)}
 
-                # Anxious(긴장)와 Embarrassed(당황)만 추출
+                # Anxious(긴장)와 Embarrassed(당황) 추출 (원래 비중 유지)
                 target_emotions = ['Anxious', 'Embarrassed']
-                filtered_scores = {}
+                emotion_scores = {}
 
                 for emotion in target_emotions:
                     if emotion in all_emotion_scores:
-                        filtered_scores[emotion] = all_emotion_scores[emotion]
-
-                # 두 감정의 합으로 정규화 (합이 100%가 되도록) -> 6개에서 2개로 줄였으니까
-                total = sum(filtered_scores.values())
-                if total > 0:
-                    emotion_scores = {k: (v / total) * 100 for k, v in filtered_scores.items()}
-                else:
-                    emotion_scores = filtered_scores
+                        emotion_scores[emotion] = all_emotion_scores[emotion]
 
                 # 주요 감정 결정 (Anxious vs Embarrassed 중 높은 것)
                 if emotion_scores:
@@ -193,6 +194,7 @@ class VoiceAnalyzer:
             else:
                 emotion_confidence = None
                 emotion_scores = None
+                all_emotion_scores = None
 
             # 음향 특징 분석
             speech_features = self.analyze_speech_features(audio_path, estimated_syllables)
@@ -201,7 +203,8 @@ class VoiceAnalyzer:
             result = {
                 'emotion': emotion_name,
                 'emotion_confidence': emotion_confidence,
-                'emotion_scores': emotion_scores,
+                'emotion_scores': emotion_scores,  # Anxious, Embarrassed 2개 (원래 비중)
+                'all_emotion_scores': all_emotion_scores,  # 전체 6개 감정
                 **speech_features
             }
 
