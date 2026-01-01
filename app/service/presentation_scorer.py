@@ -32,9 +32,9 @@ class PresentationScorer:
         pitch_score = cls.normalize_score(result['pitch_std'], std.PITCH_STD_IDEAL, std.PITCH_STD_MIN, std.PITCH_STD_MAX)
 
         # 말하기 속도 점수
-        speech_rate = result.get('speech_rate_actual') or result.get('speech_rate_total')
+        speech_rate = result.get('speech_rate_actual') or result.get('speech_rate_total') or 0
 
-        if speech_rate:
+        if speech_rate > 0:
             speed_score = cls.normalize_score(speech_rate, std.SPEECH_RATE_IDEAL, std.SPEECH_RATE_MIN, std.SPEECH_RATE_MAX)
         else:
             speed_score = 50  # 기본값
