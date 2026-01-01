@@ -1,9 +1,27 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from app.routers import voice_analysis, user, interview, jobs, image, presentation, communication, community, minigame
 from contextlib import asynccontextmanager
 from app.database.database import create_tables
 import os
+
+
+# Proxy Headers 미들웨어 (수동 구현)
+class ProxyHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        # X-Forwarded-Proto 헤더 확인
+        forwarded_proto = request.headers.get("X-Forwarded-Proto")
+        if forwarded_proto:
+            request.scope["scheme"] = forwarded_proto
+        
+        # X-Forwarded-For 헤더 확인 (선택사항)
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            request.scope["client"] = (forwarded_for.split(",")[0].strip(), 0)
+        
+        response = await call_next(request)
+        return response
 
 
 @asynccontextmanager
@@ -68,6 +86,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Team Project API", description="음성 분석 API", version="1.0.0", lifespan=lifespan)
+
+# ProxyHeaders 미들웨어 추가 (ALB/CloudFront의 HTTPS 정보 인식)
+app.add_middleware(ProxyHeadersMiddleware)
 
 # CORS 설정: 환경 변수에서 허용할 도메인 목록 가져오기
 allowed_origins = os.getenv(
