@@ -8,18 +8,39 @@ from sqlalchemy import create_engine
 from app.core.settings import settings
 from app.database.base import Base
 
-# 엔진 설정
+# ALB 설정
 async_engine = create_async_engine(
     settings.database_url,
     pool_pre_ping=True,
     future=True,
-    echo=False
+    echo=False,
+    pool_size=3,              # 기본 연결 풀 크기
+    max_overflow=2,           # 초과 허용 연결 수
+    pool_recycle=3600,        # 1시간마다 연결 재활용 (RDS 8시간 타임아웃 대비)
+    pool_timeout=30,          # 연결 대기 시간 (초)
 )
 
 sync_engine = create_engine(
     settings.sync_database_url,
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    pool_size=3,
+    max_overflow=2,
+    pool_recycle=3600,
+    pool_timeout=30,
 )
+
+# # 엔진 설정
+# async_engine = create_async_engine(
+#     settings.database_url,
+#     pool_pre_ping=True,
+#     future=True,
+#     echo=False
+# )
+#
+# sync_engine = create_engine(
+#     settings.sync_database_url,
+#     pool_pre_ping=True
+# )
 
 AsyncSessionLocal = async_sessionmaker(
     bind=async_engine,
