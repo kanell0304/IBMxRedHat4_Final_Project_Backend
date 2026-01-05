@@ -51,15 +51,9 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
             if not answers:
                 raise HTTPException(status_code=400, detail="답변이 없습니다.")
 
-            # 디버깅: 전체 답변 개수 확인 (영어)
-            print(f"[DEBUG EN] 전체 답변 개수: {len(answers)}")
-            for idx, ans in enumerate(answers):
-                print(f"[DEBUG EN] 답변 {idx+1}: answer_id={ans.i_answer_id}, q_order={ans.q_order}, "
-                      f"transcript={'있음' if ans.transcript and ans.transcript.strip() else 'NULL/빈값'}")
 
             # transcript가 있는 답변만 필터링
             valid_answers = [a for a in answers if a.transcript and a.transcript.strip()]
-            print(f"[DEBUG EN] 유효한 답변 개수: {len(valid_answers)}")
 
             if not valid_answers:
                 raise HTTPException(status_code=400, detail="처리된 답변이 없습니다.")
@@ -143,15 +137,8 @@ async def analyze_interview_full(i_id:int, db: AsyncSession = Depends(get_db)):
         if not answers:
             raise HTTPException(status_code=400, detail="답변이 없습니다.")
 
-        # 디버깅: 전체 답변 개수 확인
-        print(f"[DEBUG] 전체 답변 개수: {len(answers)}")
-        for idx, ans in enumerate(answers):
-            print(f"[DEBUG] 답변 {idx+1}: answer_id={ans.i_answer_id}, q_order={ans.q_order}, "
-                  f"transcript={'있음' if ans.transcript and ans.transcript.strip() else 'NULL/빈값'}")
-
         # transcript가 있는 답변만 필터링
         valid_answers = [a for a in answers if a.transcript and a.transcript.strip()]
-        print(f"[DEBUG] 유효한 답변 개수: {len(valid_answers)}")
 
         if not valid_answers:
             raise HTTPException(status_code=400, detail="처리된 답변이 없습니다.")

@@ -23,7 +23,6 @@ class OpenAIService:
             )->I_Report:
 
             expected_question_count = len(qa_list) if qa_list else 0
-            print(f"[DEBUG LLM] 예상 질문 개수: {expected_question_count}")
 
             prompt=build_prompt(
                  transcript=transcript,
@@ -69,9 +68,7 @@ class OpenAIService:
                 # 질문 개수 검증
                 if expected_question_count > 0:
                     actual_count = len(data.get("content_per_question", []))
-                    print(f"[DEBUG LLM] LLM이 생성한 질문별 평가 개수: {actual_count}")
                     if actual_count != expected_question_count:
-                        print(f"[ERROR LLM] 질문 개수 불일치! 예상: {expected_question_count}, 실제: {actual_count}")
                         raise ValueError(
                             f"질문별 평가 개수 불일치: 예상 {expected_question_count}개, 실제 {actual_count}개. "
                             f"LLM이 모든 질문에 대해 평가를 생성하지 않았습니다."

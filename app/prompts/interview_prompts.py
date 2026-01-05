@@ -89,27 +89,19 @@ def build_prompt(
           그리고 면접 상황에 맞는 격식을 유지하고 있는지 등을 평가합니다.
         - BERT 결과 중 "formality_inconsistency", "disfluency_repetition", "vague", "ending_da"를 참고하세요.
 
-
     - 언어 정확성 점수 결정 시, BERT 라벨 중 "slang", "biased", "curse"의 label과 score를 우선적으로 반영하되,
       실제 텍스트가 '차별/비하/욕설'에 해당하는지 한 번 더 확인하세요. 단순한 짧은 대답(예: "네.", "맞습니다.")은 편향/욕설로 판단하지 않습니다.
     - 발화 간결성 점수를 정할 때는 BERT 라벨 중 "filler"만을 가장 중요하게 반영하세요.
     - 구조 명확성 점수를 결정할 때 "formality_inconsistency", "disfluency_repetition", "vague", "ending_da" 네 가지를 종합적으로 고려하세요.
 
-2. score(0~100점 정수) - 품질 점수(높을수록 좋음)
-    - 90~100 : 문제 없음 (S등급)
-    - 80~89 : 아주 약한 정도로 존재 (A등급)
-    - 70~79 : 약하게 존재 (B등급)
-    - 60~69 : 자주 나타나서 전달력에 영향 (C등급)
-    - 0~59 : 심각하여 발화 이해에 큰 방해 (D등급)
-
-3. BERT 결과 반영 방식
+2. BERT 결과 반영 방식
     - BERT에서 label=1이고 score 높을수록, 해당 항목의 품질 score는 낮게 책정하세요.
     - BERT에서 label=0인 항목은 품질 score를 80 이상으로 주세요.
     - 텍스트를 직접 읽고 보정할 수 있지만, BERT의 신호를 기본값으로 존중해야 합니다.
     - 터무니 없이 BERT 라벨 결과가 틀렸을 경우, score를 조정해주세요.
         - 예시 : 욕설이 아예 없는 문장임에도 curse=1일 경우
 
-4. 예시/근거 (score에 따라 다르게 작성)
+3. 예시/근거 (score에 따라 다르게 작성)
     - "detected_examples"에는:
         - score 80 미만: 실제 문제가 되는 문장 말투나 표현을 넣으세요.
         - score 80 이상: 빈 리스트 []로 남겨두거나, 좋은 표현 예시를 넣으세요.
@@ -126,25 +118,28 @@ def build_prompt(
             를 1~3개 정도 넣으세요.
         - score 80 이상: 빈 리스트 []로 남겨두거나, 현재 좋은 표현을 "original"과 "revised"에 동일하게 넣으세요.
 
-5. 제한 사항
+4. 제한 사항
     - 감정, 발음, 말 속도, 억양 등 음성 기반 특징은 절대 추론하지 마세요.
     - 제공된 텍스트와 BERT 결과에 없는 정보는 추가로 지어내지 마세요.
     - JSON 이외의 다른 텍스트는 절대 출력하지 마세요.
     - JSON 필드명, 계층 구조, 자료형을 반드시 지키세요.
 
-추가로 'content' 영역에 대해 아래 형식으로 평가하세요.
-- content.overall.score : 전체 답변의 내용 적절성(0~100)
-- content.overall.strengths : 내용적으로 잘한 점
-- content.overall.weaknesses : 내용적으로 부족한 점
-- content.overall.summary : 한 문단 요약
-- content.per_question : 위 [질문별 Q/A 목록]에 제시된 모든 질문에 대해 각각 평가
+5. 추가로 'content' 영역에 대해 아래 형식으로 평가하세요.
+    - content.overall.score : 전체 답변의 내용 적절성(0~100)
+    - content.overall.strengths : 내용적으로 잘한 점
+    - content.overall.weaknesses : 내용적으로 부족한 점
+    - content.overall.summary : 한 문단 요약
+    - content.per_question : 위 [질문별 Q/A 목록]에 제시된 모든 질문에 대해 각각 평가
+
 
 [질문별 평가 세부 지침]
-**매우 중요:
-1. [질문별 Q/A 목록]에는 총 {total_questions}개의 질문이 있습니다.
-2. content_per_question 배열에는 정확히 {total_questions}개의 항목이 있어야 합니다.
-3. q_index는 1부터 {total_questions}까지 순서대로 있어야 합니다.
-4. 각 질문별 평가는 반드시 서로 달라야 합니다.**
+절대적 필수 요구사항 - 반드시 준수하세요:
+1. 아래 [질문별 Q/A 목록]에는 총 {total_questions}개의 질문이 있습니다.
+2. content_per_question 배열에는 반드시 정확히 {total_questions}개의 항목이 있어야 합니다.
+3. q_index는 1부터 {total_questions}까지 빠짐없이 순서대로 있어야 합니다.
+4. 각 질문별 평가는 반드시 서로 달라야 합니다.
+5. {total_questions}개 미만으로 생성하면 절대 안 됩니다. 반드시 {total_questions}개 모두 생성하세요.
+
 
 1. 질문 의도 파악 (question_intent):
    - 각 질문이 무엇을 묻고 있는지 명확히 분석하세요.
@@ -155,17 +150,17 @@ def build_prompt(
    - 먼저 question_intent에서 파악한 질문의 핵심 의도를 기준으로 삼으세요.
    - 답변이 그 의도에 직접적으로 대답하는지 평가하세요.
 
-   **true로 판단하는 경우 (초록 배지 "적절"):**
+   true로 판단하는 경우 (초록 배지 "적절"):
    - 질문의 핵심 의도에 직접 답변함
    - 예: "지원 동기" 질문에 회사/직무에 대한 관심과 본인의 fit을 설명
 
-   **false로 판단하는 경우 (빨간 배지 "개선필요"):**
+   false로 판단하는 경우 (빨간 배지 "개선필요"):
    - 질문과 완전히 무관한 내용으로 답변
    - 질문을 회피하거나 다른 주제로 전환
    - 부분적으로만 답하고 핵심을 놓침
    - 예: "지원 동기" 질문에 자기 경력만 나열하고 회사/직무와의 연결성 없음
 
-   **중요:** question_intent에서 파악한 의도와 실제 답변 내용을 비교하여 판단하세요.
+   중요: question_intent에서 파악한 의도와 실제 답변 내용을 비교하여 판단하세요.
 
 3. 구체적인 평가 (comment):
    - "좋았다/부족했다"와 같은 일반적 표현 금지.
@@ -182,15 +177,11 @@ def build_prompt(
    - 다른 질문의 답변을 섞지 마세요.
    - 평가 근거가 되는 핵심 문장 1~3개를 선택하세요.
 
-**금지 사항:**
+금지 사항:
 - 모든 질문에 대해 "전반적으로 좋았으나 구체성이 부족합니다" 같은 동일한 패턴 반복 금지
 - comment와 suggestion이 5개 질문에서 비슷한 내용으로 나오는 것 금지
 - question_intent가 "질문의 의도를 파악하기 위한 질문입니다" 같은 무의미한 문장 금지
 
-
-[출력 형식]
-- JSON 이외의 다른 텍스트는 절대 출력하지 마세요.
-- JSON 필드명, 계층 구조, 자료형을 반드시 지키세요.
 
 반드시 아래 JSON 형식으로만 응답하세요. 마크다운 코드 블록(```)이나 추가 설명은 절대 포함하지 마세요.
 
@@ -252,11 +243,38 @@ def build_prompt(
         "question_intent": "<질문의 의도를 한 문장으로 요약>",
         "is_appropriate": <true 또는 false, 답변이 질문 의도에 맞는지>,
         "evidence_sentences": ["<근거가 되는 사용자 답변 문장1>", "<근거가 되는 사용자 답변 문장2>"]
+        }},
+        {{
+        "q_index": 3,
+        "q_text": "<질문3 텍스트>",
+        "score": <0~100 정수>,
+        "comment": "<이 답변이 왜 적절/부적절했는지 내용 중심 설명>",
+        "suggestion": "<어떻게 말하면 더 좋았을지>",
+        "question_intent": "<질문의 의도를 한 문장으로 요약>",
+        "is_appropriate": <true 또는 false, 답변이 질문 의도에 맞는지>,
+        "evidence_sentences": ["<근거가 되는 사용자 답변 문장1>", "<근거가 되는 사용자 답변 문장2>"]
+        }},
+        {{
+        "q_index": 4,
+        "q_text": "<질문4 텍스트>",
+        "score": <0~100 정수>,
+        "comment": "<이 답변이 왜 적절/부적절했는지 내용 중심 설명>",
+        "suggestion": "<어떻게 말하면 더 좋았을지>",
+        "question_intent": "<질문의 의도를 한 문장으로 요약>",
+        "is_appropriate": <true 또는 false, 답변이 질문 의도에 맞는지>,
+        "evidence_sentences": ["<근거가 되는 사용자 답변 문장1>", "<근거가 되는 사용자 답변 문장2>"]
+        }},
+        {{
+        "q_index": 5,
+        "q_text": "<질문5 텍스트>",
+        "score": <0~100 정수>,
+        "comment": "<이 답변이 왜 적절/부적절했는지 내용 중심 설명>",
+        "suggestion": "<어떻게 말하면 더 좋았을지>",
+        "question_intent": "<질문의 의도를 한 문장으로 요약>",
+        "is_appropriate": <true 또는 false, 답변이 질문 의도에 맞는지>,
+        "evidence_sentences": ["<근거가 되는 사용자 답변 문장1>", "<근거가 되는 사용자 답변 문장2>"]
         }}
-        ... (Q3, Q4, ... Q{total_questions}까지 동일한 형식으로 계속)
     ],
-
-    **중요: content_per_question 배열에는 정확히 {total_questions}개의 항목(q_index 1~{total_questions})이 있어야 합니다.**
 
     "overall_comment":"<전체적인 총평을 15~20문장으로 상세하게 작성. 언어 정확성, 발화 간결성, 구조 명확성 각각에 대한 평가와 함께 내용 적절성, 질문별 답변 차별성, 전반적인 인상, 강점, 약점, 개선 방향을 종합적으로 서술하세요.>"
 
