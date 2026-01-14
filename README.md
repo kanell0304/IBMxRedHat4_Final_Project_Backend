@@ -2,6 +2,21 @@ STEACH 프로젝트 Backend
 
 STEACH: 이용자의 말투, 억양, 부적절한 표현등을 감지하여 이용자에게 피드백을 제공하는 서비스 <br>
 
+프로젝트 구성원: 이경준(팀장), 하태호(부팀장), 김가현, 손연서
+
+구성원 담당 파트
+- 이경준: 발표분석(Wav2Vec2), 미니게임(Google STT), 로그인/회원가입/비밀번호 재설정, 커뮤니티, 관리자 페이지
+- 하태호: 모의면접(Google STT, BERT), Rag, ChromaDB
+- 김가현: 모의면접(Google STT, BERT), Rag, ChromaDB
+- 손연서: 대화분석(Google STT, BERT)
+
+기술스택
+Frontend: React + Vite, Tailwind CSS
+Backend: Python, FastAPI, SQLAlchemy, Alembic
+AI/ML: PyTorch, Wav2Vec2(meta), Whisper(openai), OpenAI API, Google STT, BERT
+Database: MySQL, ChromaDB
+Infra(CI/CD): AWS(Route53, ALB, ECS, ECR, RDS, S3), Docker, GitHub Actions
+
 서비스: 모의면접(Google STT, BERT), 대화분석(Google STT, BERT), 발표분석(Wav2Vec2, Scikit-Learn, Librosa), 미니게임(Google STT), 커뮤니티 <br>
 - 모의 면접: 예상 질문 제시 -> 이용자가 실시간 녹음 -> Google STT 텍스트 변환 -> BERT 부적절한 표현 감지 -> 통합 피드백 + 질문별 피드백 제공 <br>
 - 대화 분석: 녹음 파일 업로드 -> Google STT 텍스트 변환 -> BERT 부적절한 표현 감지 -> 통합 피드백 제공 <br>
@@ -10,13 +25,9 @@ STEACH: 이용자의 말투, 억양, 부적절한 표현등을 감지하여 이�
 
 발표분석 Scikit-Learn에 이용된 학습 데이터 셋 출처: https://aihub.or.kr
 
-프로젝트 구성원: 이경준(팀장), 하태호(부팀장), 김가현, 손연서
 
-구성원 담당 파트
-- 이경준: 발표분석(Wav2Vec2), 미니게임(Google STT), 로그인/회원가입/비밀번호 재설정, 커뮤니티, 관리자 페이지
-- 하태호: 모의면접(Google STT, BERT), Rag, ChromaDB
-- 김가현: 모의면접(Google STT, BERT), Rag, ChromaDB
-- 손연서: 대화분석(Google STT, BERT)
+
+
 
 
 
