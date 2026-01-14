@@ -10,6 +10,14 @@ STEACH: 이용자의 말투, 억양, 부적절한 표현등을 감지하여 이�
 
 발표분석 Scikit-Learn에 이용된 학습 데이터 셋 출처: https://aihub.or.kr
 
+프로젝트 구성원: 이경준(팀장), 하태호(부팀장), 김가현, 손연서
+
+구성원 담당 파트
+- 이경준: 발표분석(Wav2Vec2), 미니게임(Google STT), 로그인/회원가입/비밀번호 재설정, 커뮤니티, 관리자 페이지
+- 하태호: 모의면접(Google STT, BERT), Rag, ChromaDB
+- 김가현: 모의면접(Google STT, BERT), Rag, ChromaDB
+- 손연서: 대화분석(Google STT, BERT)
+
 
 
 
