@@ -7,15 +7,13 @@ from app.database.database import create_tables
 import os
 
 
-# Proxy Headers 미들웨어 (수동 구현)
+# Proxy Headers 미들웨어
 class ProxyHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        # X-Forwarded-Proto 헤더 확인
         forwarded_proto = request.headers.get("X-Forwarded-Proto")
         if forwarded_proto:
             request.scope["scheme"] = forwarded_proto
-        
-        # X-Forwarded-For 헤더 확인 (선택사항)
+
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
             request.scope["client"] = (forwarded_for.split(",")[0].strip(), 0)
@@ -62,7 +60,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"미니게임 데이터 초기화 실패: {e}")
 
-    # 1. 모델 파일 확인 (로컬 우선, 없으면 S3)
+    # 모델 파일 확인 - 로컬에 있는지 확인하고 없다면 S3에서 받아옴
     try:
         from app.core.model_loader import ensure_models_ready
         models_ready = ensure_models_ready()
@@ -72,7 +70,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"모델 파일 확인 실패: {e}")
 
-    # 2. 음성 분석기 로드
+    # 음성 분석기 로드
     try:
         from app.service.voice_analyzer import get_analyzer
         analyzer = get_analyzer()
@@ -129,7 +127,7 @@ async def root():
         }
     }
 
-
+# 서버 정상 작동 여부 확인 (AWS에 배포 작동 확인용)
 @app.get("/health")
 async def health():
     return {"status": "ok"}

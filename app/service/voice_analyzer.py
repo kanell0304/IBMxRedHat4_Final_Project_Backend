@@ -50,141 +50,185 @@ class VoiceAnalyzer:
         except Exception as e:
             raise Exception(f"모델 로드 실패: {e}")
 
-    def extract_wav2vec_features(self, audio_path: str) -> Optional[np.ndarray]:
-
+    # 02/28 이경준 - 분석 과정 청크화
+    def extract_wav2vec_features(self, audio_path: str, chunk_sec: int = 30) -> Optional[np.ndarray]:
         try:
-            # librosa로 오디오 로드 (16kHz)
             waveform_np, sr = librosa.load(audio_path, sr=16000, mono=True)
 
-            # numpy → torch tensor 변환
-            waveform = torch.from_numpy(waveform_np).float()
-            waveform = waveform.unsqueeze(0)
-            waveform = waveform.to(self.device)
+            chunk_size = chunk_sec * sr  # 청크당 샘플 수 (기본 30초)
+            total_samples = len(waveform_np)
 
-            # 모델 실행
-            with torch.no_grad():
-                features, _ = self.wav2vec_model(waveform)
+            chunk_features = []
 
-            # 평균 풀링: (1, time_steps, 1024) → (1024,)
-            features_mean = features.mean(dim=1).squeeze().cpu().numpy()
+            for start in range(0, total_samples, chunk_size):
+                end = min(start + chunk_size, total_samples)
+                chunk = waveform_np[start:end]
 
-            return features_mean
+                # 너무 짧은 청크 무시 (0.5초 미만)
+                if len(chunk) < sr * 0.5:
+                    continue
+
+                waveform = torch.from_numpy(chunk).float().unsqueeze(0).to(self.device)
+
+                with torch.no_grad():
+                    features, _ = self.wav2vec_model(waveform)
+
+                chunk_mean = features.mean(dim=1).squeeze().cpu().numpy()
+                chunk_features.append(chunk_mean)
+
+                # 메모리 명시적 해제
+                del waveform, features
+                if self.device.type == 'cuda':
+                    torch.cuda.empty_cache()
+
+            if not chunk_features:
+                return None
+
+            # 청크별 feature 평균 → 전체 특징 벡터
+            return np.mean(chunk_features, axis=0)
 
         except Exception as e:
             print(f"Wav2Vec2 특징 추출 오류: {e}")
             return None
 
-    def analyze_speech_features(self, audio_path: str, estimated_syllables: Optional[int] = None) -> Dict:
-        try:
-            # 오디오 로드
-            y, sr = librosa.load(audio_path, sr=16000, mono=True)
-            duration = len(y) / sr
+    # # 청크화 이전
+    # def extract_wav2vec_features(self, audio_path: str) -> Optional[np.ndarray]:
+    #     try:
+    #         waveform_np, sr = librosa.load(audio_path, sr=16000, mono=True)
+    #         waveform = torch.from_numpy(waveform_np).float()
+    #         waveform = waveform.unsqueeze(0).to(self.device)
+    #
+    #         with torch.no_grad():
+    #             features, _ = self.wav2vec_model(waveform)
+    #
+    #         features_mean = features.mean(dim=1).squeeze().cpu().numpy()
+    #         return features_mean
+    #
+    #     except Exception as e:
+    #         print(f"Wav2Vec2 특징 추출 오류: {e}")
+    #         return None
+    #
+    # def analyze_speech_features(self, audio_path: str, estimated_syllables: Optional[int] = None) -> Dict:
+    #     try:
+    #         # 오디오 로드
+    #         y, sr = librosa.load(audio_path, sr=16000, mono=True)
+    #         duration = len(y) / sr
+    #
+    #         # 음량 (RMS Energy)
+    #         rms = librosa.feature.rms(y=y)[0]
+    #         avg_volume = np.mean(rms)
+    #         max_volume = np.max(rms)
+    #         avg_volume_db = librosa.amplitude_to_db(np.array([avg_volume]))[0]
+    #         max_volume_db = librosa.amplitude_to_db(np.array([max_volume]))[0]
+    #
+    #         # 피치 분석
+    #         pitches, magnitudes = librosa.piptrack(y=y, sr=sr, fmin=50, fmax=400)
+    #         pitch_values = []
+    #         for t in range(pitches.shape[1]):
+    #             index = magnitudes[:, t].argmax()
+    #             pitch = pitches[index, t]
+    #             if pitch > 0:
+    #                 pitch_values.append(pitch)
+    #
+    #         avg_pitch = np.mean(pitch_values) if pitch_values else 0
+    #         pitch_std = np.std(pitch_values) if pitch_values else 0
+    #         pitch_range = (np.max(pitch_values) - np.min(pitch_values)) if pitch_values else 0
+    #
+    #         # 침묵 구간 검출 - 음성 총 길이에서 목소리가 나는 구간을 뺀 나머지 = 침묵 구간
+    #         intervals = librosa.effects.split(y, top_db=30)
+    #         total_speech_time = sum((end - start) / sr for start, end in intervals)
+    #         silence_duration = duration - total_speech_time
+    #         silence_ratio = silence_duration / duration if duration > 0 else 0
+    #
+    #         # 발화 속도 - 말하기(단어당) 속도
+    #         if estimated_syllables:
+    #             speech_rate_total = estimated_syllables / duration
+    #             speech_rate_actual = estimated_syllables / total_speech_time if total_speech_time > 0 else 0
+    #         else:
+    #             # estimated_syllables가 없을 경우 자동 추정
+    #             # 한국어 평균 발화 속도: 약 4.5 음절/초
+    #             # 실제 말한 시간을 기준으로 음절 수 추정
+    #             if total_speech_time > 0:
+    #                 estimated_total_syllables = total_speech_time * 4.5  # 평균 발화 속도 기준
+    #                 speech_rate_total = estimated_total_syllables / duration
+    #                 speech_rate_actual = 4.5  # 기본값으로 평균 발화 속도 사용
+    #             else:
+    #                 speech_rate_total = 0
+    #                 speech_rate_actual = 0
+    #
+    #         # 기타 특징
+    #         energy_std = np.std(rms) # 에너지 표준편차
+    #         zcr = librosa.feature.zero_crossing_rate(y)[0] # 영교차율 -> 쉽게 말해서 음성의 파형이 0을 기준으로 얼마나 많이 왔다갔다 하는지 -> 발음이 얼마나 명확한지
+    #         spectral_centroids = librosa.feature.spectral_centroid(y=y, sr=sr)[0] # 목소리가 얼마나 밝은지 정도
+    #         num_segments = len(intervals) # 얼마나 말을 잘 끊어서 말했는지
+    #         avg_segment_length = total_speech_time / num_segments if num_segments > 0 else 0 # 평균 세그먼트 길이
+    #
+    #         return {
+    #             'duration': float(duration),
+    #             'duration_min': float(duration / 60),
+    #             'total_speech_time': float(total_speech_time),
+    #             'silence_duration': float(silence_duration),
+    #             'silence_ratio': float(silence_ratio),
+    #             'avg_volume_db': float(avg_volume_db),
+    #             'max_volume_db': float(max_volume_db),
+    #             'avg_pitch': float(avg_pitch),
+    #             'pitch_std': float(pitch_std),
+    #             'pitch_range': float(pitch_range),
+    #             'speech_rate_total': float(speech_rate_total) if speech_rate_total is not None else 0.0,
+    #             'speech_rate_actual': float(speech_rate_actual) if speech_rate_actual is not None else 0.0,
+    #             'num_segments': int(num_segments),
+    #             'avg_segment_length': float(avg_segment_length),
+    #             'energy_std': float(energy_std),
+    #             'avg_zcr': float(np.mean(zcr)),
+    #             'spectral_centroid': float(np.mean(spectral_centroids))
+    #         }
+    #
+    #     except Exception as e:
+    #         print(f"음성 특징 분석 오류: {e}")
+    #         return {}
 
-            # 음량 (RMS Energy)
-            rms = librosa.feature.rms(y=y)[0]
-            avg_volume = np.mean(rms)
-            max_volume = np.max(rms)
-            avg_volume_db = librosa.amplitude_to_db(np.array([avg_volume]))[0]
-            max_volume_db = librosa.amplitude_to_db(np.array([max_volume]))[0]
-
-            # 피치 분석
-            pitches, magnitudes = librosa.piptrack(y=y, sr=sr, fmin=50, fmax=400)
-            pitch_values = []
-            for t in range(pitches.shape[1]):
-                index = magnitudes[:, t].argmax()
-                pitch = pitches[index, t]
-                if pitch > 0:
-                    pitch_values.append(pitch)
-
-            avg_pitch = np.mean(pitch_values) if pitch_values else 0
-            pitch_std = np.std(pitch_values) if pitch_values else 0
-            pitch_range = (np.max(pitch_values) - np.min(pitch_values)) if pitch_values else 0
-
-            # 침묵 구간 검출 - 음성 총 길이에서 목소리가 나는 구간을 뺀 나머지 = 침묵 구간
-            intervals = librosa.effects.split(y, top_db=30)
-            total_speech_time = sum((end - start) / sr for start, end in intervals)
-            silence_duration = duration - total_speech_time
-            silence_ratio = silence_duration / duration if duration > 0 else 0
-
-            # 발화 속도 - 말하기(단어당) 속도
-            if estimated_syllables:
-                speech_rate_total = estimated_syllables / duration
-                speech_rate_actual = estimated_syllables / total_speech_time if total_speech_time > 0 else 0
-            else:
-                # estimated_syllables가 없을 경우 자동 추정
-                # 한국어 평균 발화 속도: 약 4.5 음절/초
-                # 실제 말한 시간을 기준으로 음절 수 추정
-                if total_speech_time > 0:
-                    estimated_total_syllables = total_speech_time * 4.5  # 평균 발화 속도 기준
-                    speech_rate_total = estimated_total_syllables / duration
-                    speech_rate_actual = 4.5  # 기본값으로 평균 발화 속도 사용
-                else:
-                    speech_rate_total = 0
-                    speech_rate_actual = 0
-
-            # 기타 특징
-            energy_std = np.std(rms) # 에너지 표준편차
-            zcr = librosa.feature.zero_crossing_rate(y)[0] # 영교차율 -> 쉽게 말해서 음성의 파형이 0을 기준으로 얼마나 많이 왔다갔다 하는지 -> 발음이 얼마나 명확한지
-            spectral_centroids = librosa.feature.spectral_centroid(y=y, sr=sr)[0] # 목소리가 얼마나 밝은지 정도
-            num_segments = len(intervals) # 얼마나 말을 잘 끊어서 말했는지
-            avg_segment_length = total_speech_time / num_segments if num_segments > 0 else 0 # 평균 세그먼트 길이
-
-            return {
-                'duration': float(duration),
-                'duration_min': float(duration / 60),
-                'total_speech_time': float(total_speech_time),
-                'silence_duration': float(silence_duration),
-                'silence_ratio': float(silence_ratio),
-                'avg_volume_db': float(avg_volume_db),
-                'max_volume_db': float(max_volume_db),
-                'avg_pitch': float(avg_pitch),
-                'pitch_std': float(pitch_std),
-                'pitch_range': float(pitch_range),
-                'speech_rate_total': float(speech_rate_total) if speech_rate_total is not None else 0.0,
-                'speech_rate_actual': float(speech_rate_actual) if speech_rate_actual is not None else 0.0,
-                'num_segments': int(num_segments),
-                'avg_segment_length': float(avg_segment_length),
-                'energy_std': float(energy_std),
-                'avg_zcr': float(np.mean(zcr)),
-                'spectral_centroid': float(np.mean(spectral_centroids))
-            }
-
-        except Exception as e:
-            print(f"음성 특징 분석 오류: {e}")
-            return {}
-
+    # 청크화
     def analyze(self, audio_path: str, estimated_syllables: Optional[int] = None) -> Dict:
-
         try:
-            # Wav2Vec2 특징 추출
-            wav2vec_features = self.extract_wav2vec_features(audio_path)
+            # 오디오를 로드
+            waveform_np, sr = librosa.load(audio_path, sr=16000, mono=True)
+            duration = len(waveform_np) / sr
 
-            if wav2vec_features is None:
+            # Wav2Vec2 청크 특징 추출
+            chunk_sec = 30
+            chunk_size = chunk_sec * sr
+            total_samples = len(waveform_np)
+            chunk_features = []
+
+            for start in range(0, total_samples, chunk_size):
+                end = min(start + chunk_size, total_samples)
+                chunk = waveform_np[start:end]
+
+                if len(chunk) < sr * 0.5:
+                    continue
+
+                waveform = torch.from_numpy(chunk).float().unsqueeze(0).to(self.device)
+                with torch.no_grad():
+                    features, _ = self.wav2vec_model(waveform)
+                chunk_features.append(features.mean(dim=1).squeeze().cpu().numpy())
+                del waveform, features
+
+            if not chunk_features:
                 return {"error": "특징 추출 실패"}
 
-            # 특징 스케일링
-            features_scaled = self.scaler.transform([wav2vec_features])
+            wav2vec_features = np.mean(chunk_features, axis=0)
 
-            # 전체 감정 예측
+            # 감정 예측
+            features_scaled = self.scaler.transform([wav2vec_features])
             emotion_pred = self.emotion_model.predict(features_scaled)[0]
             emotion_name = self.idx_to_emotion[emotion_pred]
 
-            # 확률 예측
             if hasattr(self.emotion_model, 'predict_proba'):
                 emotion_proba = self.emotion_model.predict_proba(features_scaled)[0]
-
-                # 전체 감정별 확률 (6개 모두)
                 all_emotion_scores = {self.idx_to_emotion[i]: float(prob * 100) for i, prob in enumerate(emotion_proba)}
-
-                # Anxious(긴장)와 Embarrassed(당황) 추출 (원래 비중 유지)
                 target_emotions = ['Anxious', 'Embarrassed']
-                emotion_scores = {}
+                emotion_scores = {e: all_emotion_scores[e] for e in target_emotions if e in all_emotion_scores}
 
-                for emotion in target_emotions:
-                    if emotion in all_emotion_scores:
-                        emotion_scores[emotion] = all_emotion_scores[emotion]
-
-                # 주요 감정 결정 (Anxious vs Embarrassed 중 높은 것)
                 if emotion_scores:
                     main_emotion = max(emotion_scores.items(), key=lambda x: x[1])
                     emotion_name = main_emotion[0]
@@ -197,24 +241,127 @@ class VoiceAnalyzer:
                 all_emotion_scores = None
 
             # 음향 특징 분석
-            speech_features = self.analyze_speech_features(audio_path, estimated_syllables)
+            rms = librosa.feature.rms(y=waveform_np)[0]
+            avg_volume_db = librosa.amplitude_to_db(np.array([np.mean(rms)]))[0]
+            max_volume_db = librosa.amplitude_to_db(np.array([np.max(rms)]))[0]
 
-            # 결과 통합
-            result = {
-                'emotion': emotion_name,
-                'emotion_confidence': emotion_confidence,
-                'emotion_scores': emotion_scores,  # Anxious, Embarrassed 2개 (원래 비중)
-                'all_emotion_scores': all_emotion_scores,  # 전체 6개 감정
-                **speech_features
+            pitches, magnitudes = librosa.piptrack(y=waveform_np, sr=sr, fmin=50, fmax=400)
+            pitch_values = [pitches[magnitudes[:, t].argmax(), t] for t in range(pitches.shape[1])
+                            if pitches[magnitudes[:, t].argmax(), t] > 0]
+
+            intervals = librosa.effects.split(waveform_np, top_db=30)
+            total_speech_time = sum((end - start) / sr for start, end in intervals)
+            silence_duration = duration - total_speech_time
+            silence_ratio = silence_duration / duration if duration > 0 else 0
+
+            if estimated_syllables:
+                speech_rate_total = estimated_syllables / duration
+                speech_rate_actual = estimated_syllables / total_speech_time if total_speech_time > 0 else 0
+            else:
+                if total_speech_time > 0:
+                    speech_rate_total = (total_speech_time * 4.5) / duration
+                    speech_rate_actual = 4.5
+                else:
+                    speech_rate_total = speech_rate_actual = 0
+
+            num_segments = len(intervals)
+            speech_features = {
+                'duration': float(duration),
+                'duration_min': float(duration / 60),
+                'total_speech_time': float(total_speech_time),
+                'silence_duration': float(silence_duration),
+                'silence_ratio': float(silence_ratio),
+                'avg_volume_db': float(avg_volume_db),
+                'max_volume_db': float(max_volume_db),
+                'avg_pitch': float(np.mean(pitch_values)) if pitch_values else 0.0,
+                'pitch_std': float(np.std(pitch_values)) if pitch_values else 0.0,
+                'pitch_range': float(np.max(pitch_values) - np.min(pitch_values)) if pitch_values else 0.0,
+                'speech_rate_total': float(speech_rate_total),
+                'speech_rate_actual': float(speech_rate_actual),
+                'num_segments': int(num_segments),
+                'avg_segment_length': float(total_speech_time / num_segments) if num_segments > 0 else 0.0,
+                'energy_std': float(np.std(rms)),
+                'avg_zcr': float(np.mean(librosa.feature.zero_crossing_rate(waveform_np)[0])),
+                'spectral_centroid': float(np.mean(librosa.feature.spectral_centroid(y=waveform_np, sr=sr)[0]))
             }
 
-            return result
+            return {
+                'emotion': emotion_name,
+                'emotion_confidence': emotion_confidence,
+                'emotion_scores': emotion_scores,
+                'all_emotion_scores': all_emotion_scores,
+                **speech_features
+            }
 
         except Exception as e:
             print(f"분석 오류: {e}")
             import traceback
             traceback.print_exc()
             return {"error": str(e)}
+
+    # # 청크화 이전
+    # def analyze(self, audio_path: str, estimated_syllables: Optional[int] = None) -> Dict:
+    #
+    #     try:
+    #         # Wav2Vec2 특징 추출
+    #         wav2vec_features = self.extract_wav2vec_features(audio_path)
+    #
+    #         if wav2vec_features is None:
+    #             return {"error": "특징 추출 실패"}
+    #
+    #         # 특징 스케일링
+    #         features_scaled = self.scaler.transform([wav2vec_features])
+    #
+    #         # 전체 감정 예측
+    #         emotion_pred = self.emotion_model.predict(features_scaled)[0]
+    #         emotion_name = self.idx_to_emotion[emotion_pred]
+    #
+    #         # 확률 예측
+    #         if hasattr(self.emotion_model, 'predict_proba'):
+    #             emotion_proba = self.emotion_model.predict_proba(features_scaled)[0]
+    #
+    #             # 전체 감정별 확률 (6개 모두)
+    #             all_emotion_scores = {self.idx_to_emotion[i]: float(prob * 100) for i, prob in enumerate(emotion_proba)}
+    #
+    #             # Anxious(긴장)와 Embarrassed(당황) 추출 (원래 비중 유지)
+    #             target_emotions = ['Anxious', 'Embarrassed']
+    #             emotion_scores = {}
+    #
+    #             for emotion in target_emotions:
+    #                 if emotion in all_emotion_scores:
+    #                     emotion_scores[emotion] = all_emotion_scores[emotion]
+    #
+    #             # 주요 감정 결정 (Anxious vs Embarrassed 중 높은 것)
+    #             if emotion_scores:
+    #                 main_emotion = max(emotion_scores.items(), key=lambda x: x[1])
+    #                 emotion_name = main_emotion[0]
+    #                 emotion_confidence = main_emotion[1]
+    #             else:
+    #                 emotion_confidence = None
+    #         else:
+    #             emotion_confidence = None
+    #             emotion_scores = None
+    #             all_emotion_scores = None
+    #
+    #         # 음향 특징 분석
+    #         speech_features = self.analyze_speech_features(audio_path, estimated_syllables)
+    #
+    #         # 결과 통합
+    #         result = {
+    #             'emotion': emotion_name,
+    #             'emotion_confidence': emotion_confidence,
+    #             'emotion_scores': emotion_scores,  # Anxious, Embarrassed 2개 (원래 비중)
+    #             'all_emotion_scores': all_emotion_scores,  # 전체 6개 감정
+    #             **speech_features
+    #         }
+    #
+    #         return result
+    #
+    #     except Exception as e:
+    #         print(f"분석 오류: {e}")
+    #         import traceback
+    #         traceback.print_exc()
+    #         return {"error": str(e)}
 
 _analyzer_instance = None
 
